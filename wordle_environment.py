@@ -108,6 +108,9 @@ Returns:
                         row_reward = 0
                         for i, letter in enumerate(self.current_row):
                             if letter == self.hidden_word[i]:
+                                current_row_counts[letter] += 1
+                        for i, letter in enumerate(self.current_row):
+                            if letter == self.hidden_word[i]:
                                 self.state[1, self.guess_num, i] = 2
                                 row_reward += self.green_reward
                             elif letter in self.hidden_word_as_set:
@@ -363,4 +366,4 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 
 if __name__ == '__main__':
     env = make()
-    env.play()
+    env.play('abbey')
