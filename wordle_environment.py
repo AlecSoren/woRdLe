@@ -327,7 +327,10 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
         if not isinstance(seed, (type(None), int, float, str, bytes, bytearray)):
             raise ValueError('hidden_word_subset_seed must be int, float, str, bytes, or bytearray')
         hidden_words_list = list(hidden_words_set)
-        random.Random(seed).shuffle(hidden_words_list)
+        if seed == None:
+            random.shuffle(hidden_words_list)
+        else:
+            random.Random(seed).shuffle(hidden_words_list)
         env.hidden_words = tuple(hidden_words_list[:max_hidden_word_options])
 
     if settings['action_mode'] not in (1, 2, 3, 4, 5):
@@ -366,4 +369,4 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 
 if __name__ == '__main__':
     env = make()
-    env.play('abbey')
+    env.play()
