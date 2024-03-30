@@ -7,6 +7,7 @@ from numbers import Number
 import pygame
 
 import time
+from math import sin
 
 
 
@@ -228,7 +229,8 @@ Returns:
 
         self.info = {
             'hidden_word': self.hidden_word_code,
-            'step': 0
+            'step': 0,
+            'invalid_word': False
         }
         return (self.state, self.info)
     
@@ -236,6 +238,7 @@ Returns:
     def step(self, action):
         self.step_count += 1
         self.info['step'] = self.step_count
+        self.info['invalid_word'] = False
 
         reward = self.step_reward
         terminal = False
@@ -308,6 +311,7 @@ Returns:
                     else:
                         self.state[0, self.guess_num] = 255
                         reward += self.invalid_word_reward
+                        self.info['invalid_word'] = True
 
                     self.position = 0
                     self.current_row_code = 0
@@ -342,7 +346,7 @@ Returns:
 
 
 
-def keyboard_coordinates(index, scale, screen_width, screen_height):
+def key_coords(index, scale, screen_width, screen_height):
     if index <= 9:
         x, y = 109.5 + 74 * index, 681.5
     elif index <= 18:
@@ -357,11 +361,33 @@ def get_letter_colours(state, max_guesses, word_length, alphabet):
     letter_colours = [-1] * len(alphabet)
     for x in range(max_guesses):
         for y in range(word_length):
-            letter_code = state[0, x, y]
-            try:
-                letter_colours[letter_code] = max(state[1, x, y], letter_colours[letter_code])
-            except IndexError:
+            letter_code, colour_code = state[:, x, y]
+            if colour_code == 255:
                 return letter_colours
+            letter_colours[letter_code] = max(colour_code, letter_colours[letter_code])
+    return letter_colours
+
+
+
+def draw_square(screen, font, scale, center_coords, letter = None, colour_code = 3):
+    rect = pygame.Rect(
+        center_coords[0] - 39 * scale,
+        center_coords[1] - 39 * scale,
+        78 * scale,
+        78 * scale
+        )
+    if letter == None:
+        pygame.draw.rect(screen, (211, 214, 218), rect, 3)
+    else:
+        try:
+            colour_value = ((120, 124, 126), (201, 180, 88), (106, 170, 100))[colour_code]
+        except IndexError:
+            colour_value = (135, 138, 140)
+        pygame.draw.rect(screen, colour_value, rect)
+        img = font.render(letter.upper(), True, (255, 255, 255))
+        rect = img.get_rect()
+        rect.center = (center_coords)
+        screen.blit(img, rect)
 
 
 
@@ -374,14 +400,19 @@ class Wordle_GUI_Wrapper:
     
         render_settings = {
             'render_mode':'gui', #'command_line' or 'gui',
-            'display_scale':2/3
+            'display_scale': 2/3,
+            'animation_duration': 1.0 #1 is normal speed, 0 is instant
         }
 
         override_settings(render_settings, custom_render_settings)
 
+        for k in ('display_scale', 'animation_duration'):
+            value = render_settings[k]
+            if (not isinstance(value, Number)) or value <= 0:
+                raise ValueError(f'{k} must be a positive number')
+
         self.scale = render_settings['display_scale']
-        if (not isinstance(self.scale, Number)) or self.scale == 0:
-            raise ValueError('display_scale must be a nonzero number')
+        self.animation_duration = render_settings['animation_duration']
 
         self.render()
 
@@ -392,7 +423,61 @@ class Wordle_GUI_Wrapper:
 
     def step(self, action):
         result = self.env.step(action)
+        if not self.currently_rendered:
+            return result
+        
         state, reward, terminal, truncated, info = result
+
+        scale = self.scale
+        env = self.env
+        screen = self.screen
+
+        #Add letters
+        new_letters = []
+        
+
+        #Invalid word animation
+        if info['invalid_word']:
+            for row in range(env.max_guesses):
+                if state[1, row, 0] == 255:
+                    current_row = row
+                    break
+
+            square_colours = state[1, current_row]
+            letters = [None] * env.word_length
+            for i, l in enumerate(state[0, current_row]):
+                if l != 255:
+                    letters[i] = l
+
+            anim_time = 0.62 * self.animation_duration
+            max_offset = 7
+            shakes = 10
+
+            background_rect = pygame.Rect(
+                scale * (self.x_origin - 78 / 2 - max_offset),
+                scale * (105 + 86 * current_row),
+                scale * (env.word_length * 85.5 + 78 + max_offset * 2),
+                scale * 94
+                )
+            row_coords = self.board_coords[current_row]
+
+            start_time = time.time()
+            finish_time = start_time + anim_time
+            while True:
+                completion = min(1, (time.time() - start_time) / anim_time)
+                radians = completion * 3.14
+                offset = sin(radians * shakes) * sin(radians) * max_offset
+
+                pygame.draw.rect(screen, (255, 255, 255), background_rect)
+                for i, center_coords in enumerate(row_coords):
+                    new_coords = (center_coords[0] + scale * offset, center_coords[1])
+                    draw_square(screen, self.board_font, scale, new_coords, letters[i], square_colours[i])
+
+                pygame.display.update()
+
+                if time.time() >= finish_time:
+                    break
+        
         return result
 
 
@@ -401,50 +486,47 @@ class Wordle_GUI_Wrapper:
         env = self.env
         alphabet = env.alphabet
 
+        self.currently_rendered = True
+        self.old_state = env.state
+
         pygame.init()
         screen_width = max(880, 85.5 * env.word_length + 15) #Normally 880
         screen_height = 86 * env.max_guesses + 484 #Normally 1000
+        self.screen_width, self.screen_height = screen_width, screen_height
         screen = pygame.display.set_mode((scale * screen_width, scale * screen_height))
+        self.screen = screen
         pygame.display.set_caption('Wordle Environment')
         screen.fill((255, 255, 255))
 
         board_font = pygame.font.SysFont(None, round(scale * 68))
+        self.board_font = board_font
         x_origin = (screen_width - 85.5 * (env.word_length - 1)) / 2
+        self.x_origin = x_origin
+        board_coords = []
         for r_pos in range(env.max_guesses):
+            row_coords = []
             for l_pos in range(env.word_length):
                 center_coords = (scale * (x_origin + l_pos * 85.5), scale * (152 + r_pos * 86))
-                bg_rect = (
-                    center_coords[0] - 39 * scale,
-                    center_coords[1] - 39 * scale,
-                    78 * scale,
-                    78 * scale
-                    )
+                row_coords.append(center_coords)
+                letter_code = env.state[0, r_pos, l_pos]
                 try:
-                    letter = alphabet[env.state[0, r_pos, l_pos]].upper()
+                    letter = alphabet[letter_code]
                 except IndexError:
-                    pygame.draw.rect(screen, (211, 214, 218), bg_rect, 3)
+                    draw_square(screen, board_font, scale, center_coords)
                 else:
-                    colour = ((120, 124, 126), (201, 180, 88), (106, 170, 100))[env.state[1, r_pos, l_pos]]
-                    pygame.draw.rect(screen, colour, bg_rect)
-                    img = board_font.render(letter, True, (255, 255, 255))
-                    rect = img.get_rect()
-                    rect.center = (center_coords)
-                    screen.blit(img, rect)
+                    colour_code = env.state[1, r_pos, l_pos]
+                    draw_square(screen, board_font, scale, center_coords, letter, colour_code)
+            board_coords.append(row_coords)
+        self.board_coords = board_coords
 
         keyboard_font = pygame.font.SysFont(None, round(scale * 42))
         letter_colours = get_letter_colours (
             env.state, env.max_guesses, env.word_length, alphabet
             )
+        self.key_coords = [key_coords(i, scale, screen_width, screen_height) for i in range(len(alphabet))]
         for i, colour in enumerate(letter_colours):
-            center_coords = keyboard_coordinates(i, scale, screen_width, screen_height)
+            center_coords = self.key_coords[i]
 
-            #rectangle_colour = ('dark_grey', 'yellow', 'green', 'light_grey')[colour]
-            #img = pygame.image.load(f'gui_images/rounded_rectangle_small_{rectangle_colour}.png')
-            #img.convert()
-            #img = pygame.transform.rotozoom(img, 0, scale)
-            #rect = img.get_rect()
-            #rect.center = (center_coords)
-            #screen.blit(img, rect)
             rectangle_colour = ((120, 124, 126), (201, 180, 88), (106, 170, 100), (211, 214, 218))[colour]
             bg_rect = (
                     center_coords[0] - 32.5 * scale,
@@ -465,17 +547,30 @@ class Wordle_GUI_Wrapper:
 
 
     def stop_render(self):
+        self.currently_rendered = False
         pygame.quit()
 
 
-    def play(self):
+    def play(self, keybindings = None):
+
+        if keybindings == None:
+            keybindings = {i+97:'qwertyuiopasdfghjklzxcvbnm'.index(l)
+                            for i, l in enumerate('abcdefghijklmnopqrstuvwxyz')}
+
         self.render()
+        terminal = False
         while True:
-            input_word = input('')
-            for letter in input_word:
-                self.step(self.env.alphabet.index(letter))
-            print(self.env.state)
-            self.render()
+            for event in pygame.event.get():
+                if event.type == pygame.KEYDOWN:
+                    try:
+                        action = keybindings[event.key]
+                    except KeyError:
+                        pass
+                    else:
+                        if terminal:
+                            self.reset()
+                        state, reward, terminal, truncated, info = self.step(action)
+                        self.render()
 
 
 
@@ -524,6 +619,8 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
             return env
         else:
             raise ValueError(f'there is no such render_mode as {render_mode}')
+        
+    return env
 
 
 
