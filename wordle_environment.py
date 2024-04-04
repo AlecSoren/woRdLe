@@ -20,8 +20,8 @@ def override_settings(default_settings, custom_settings):
 
 
 
-def make_word_set(filename, alphabet, word_length):
-    word_list = set()
+def make_word_list(filename, alphabet, word_length):
+    word_list = []
     with open(filename, 'r') as file:
         for i, line in enumerate(file):
             word = line.strip()
@@ -33,8 +33,8 @@ def make_word_set(filename, alphabet, word_length):
                     raise ValueError(f'word #{i} - {word} contains characters not in alphabet {alphabet}')
                 word_bits <<= 5
                 word_bits |= alphabet.index(character)
-            word_list.add(word_bits)
-    return frozenset(word_list)
+            word_list.append(word_bits)
+    return word_list
 
 
 
@@ -120,7 +120,7 @@ class Wordle_Environment:
             if not isinstance(settings['vocab_file'], str):
                 raise ValueError('vocab_file must be a string')
             vocab_file = settings['vocab_file']
-        self.vocab = make_word_set(vocab_file, alphabet, word_length)
+        self.vocab = frozenset(make_word_list(vocab_file, alphabet, word_length))
 
         if settings['hidden_words_file'] == None:
             if word_length not in default_word_files:
@@ -133,18 +133,17 @@ class Wordle_Environment:
             if not isinstance(settings['hidden_words_file'], str):
                 raise ValueError('hidden_words_file must be a string')
             hidden_words_file = settings['hidden_words_file']
-        hidden_words_set = make_word_set(hidden_words_file, alphabet, word_length)
+        hidden_words_list = make_word_list(hidden_words_file, alphabet, word_length)
         
         max_hidden_word_options = settings['max_hidden_word_options']
         if max_hidden_word_options == None:
-            self.hidden_words = tuple(hidden_words_set)
+            self.hidden_words = tuple(hidden_words_list)
         else:
-            if max_hidden_word_options > len(hidden_words_set):
+            if max_hidden_word_options > len(hidden_words_list):
                 raise ValueError('max_hidden_word_options is larger than the hidden word list')
             seed = settings['hidden_word_subset_seed']
             if not isinstance(seed, (type(None), int, float, str, bytes, bytearray)):
                 raise ValueError('hidden_word_subset_seed must be int, float, str, bytes, or bytearray')
-            hidden_words_list = list(hidden_words_set)
             if seed == None:
                 random.shuffle(hidden_words_list)
             else:
