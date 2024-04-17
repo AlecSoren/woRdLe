@@ -7,7 +7,7 @@ from numbers import Number
 import pygame
 
 import time
-from math import sin
+from math import sin, cos
 
 
 
@@ -35,6 +35,16 @@ def make_word_list(filename, alphabet, word_length):
                 word_bits |= alphabet.index(character)
             word_list.append(word_bits)
     return word_list
+
+
+
+def bits_to_word(bits, alphabet):
+    word = []
+    while bits != 0:
+        character_bits = bits & 31
+        word.insert(0, alphabet[character_bits])
+        bits >>= 5
+    return ''.join(word)
 
 
 
@@ -108,6 +118,7 @@ class Wordle_Environment:
         if len(alphabet) > 26:
             raise ValueError('alphabet must not contain more than 26 characters')
         self.alphabet = alphabet
+        self.blank_letter_number = len(alphabet)
         
         if settings['vocab_file'] == None:
             if word_length not in default_word_files:
@@ -120,7 +131,8 @@ class Wordle_Environment:
             if not isinstance(settings['vocab_file'], str):
                 raise ValueError('vocab_file must be a string')
             vocab_file = settings['vocab_file']
-        self.vocab = frozenset(make_word_list(vocab_file, alphabet, word_length))
+        self.vocab_list = make_word_list(vocab_file, alphabet, word_length)
+        self.vocab = frozenset(self.vocab_list)
 
         if settings['hidden_words_file'] == None:
             if word_length not in default_word_files:
@@ -191,7 +203,8 @@ Parameters:
 Returns:
 - observation (NDArray[uint8]) - Observation of the current state. Array has shape (2, max_guesses, word_length).
     - First dimension: 0 = letters (values correspond to alphabet indices), 1 = colours (0 for grey, 1 for
-    yellow, 2 for green). Empty cells have a value of 255.
+    yellow, 2 for green). Blank letter cells are one higher than the highest letter index.
+    Empty colour cells have a value of 3.
 - info (dict) - Contains other information unknown to the agent. Has the following fields:
     - 'hidden_word' (int) - The hidden/answer word for this episode, encoded with each group of 5 bits
     representing a letter.
@@ -218,12 +231,16 @@ Returns:
             hidden_word_counts[letter] += 1
         self.hidden_word_counts = hidden_word_counts
 
-        self.state = np.full((2, self.max_guesses, self.word_length), 255, dtype='uint8')
+        subarray_shape = (self.max_guesses, self.word_length)
+        self.state = np.stack((
+            np.full(subarray_shape, self.blank_letter_number, dtype='uint8'),
+            np.full(subarray_shape, 3, dtype='uint8')
+        ))
 
         self.position = 0
         self.guess_num = 0
         self.current_row_code = 0
-        self.current_row = [255] * self.word_length
+        self.current_row = [self.blank_letter_number] * self.word_length
         self.step_count = 0
 
         self.info = {
@@ -308,13 +325,13 @@ Returns:
                             self.guess_num += 1
 
                     else:
-                        self.state[0, self.guess_num] = 255
+                        self.state[0, self.guess_num] = self.blank_letter_number
                         reward += self.invalid_word_reward
                         self.info['invalid_word'] = True
 
                     self.position = 0
                     self.current_row_code = 0
-                    self.current_row = [255] * self.word_length
+                    self.current_row = [self.blank_letter_number] * self.word_length
 
                 return self.state, reward, terminal, truncated, self.info
 
@@ -323,8 +340,8 @@ Returns:
         display_string = '\n'
         for row in range(self.max_guesses):
             for position in range(self.word_length):
-                color = {0:'0', 1:'33', 2:'32',255:'0'}[self.state[1, row, position]]
-                letter = (self.alphabet + '.'*255)[self.state[0, row, position]]
+                color = ['0', '33', '32', '0'][self.state[1, row, position]]
+                letter = (self.alphabet + '.')[self.state[0, row, position]]
                 display_string += f'\033[{color}m{letter}'
             display_string += '\n'
         display_string += '\033[0m'
@@ -364,31 +381,71 @@ def get_letter_colours(state, max_guesses, word_length, alphabet):
     for x in range(max_guesses):
         for y in range(word_length):
             letter_code, colour_code = state[:, x, y]
-            if colour_code == 255:
+            if colour_code == 3:
                 return letter_colours
             letter_colours[letter_code] = max(colour_code, letter_colours[letter_code])
     return letter_colours
 
 
 
-def draw_square(screen, font, scale, center_coords, letter = None, colour_code = 3):
+def draw_square(
+        screen, font, scale, center_coords,
+        letter = None, colour_code = 3, x_scale = 1, y_scale = 1, erase = False
+        ):
+    x_scale_factor = scale * x_scale
+    y_scale_factor = scale * y_scale
     rect = pygame.Rect(
-        center_coords[0] - 39 * scale,
-        center_coords[1] - 39 * scale,
-        78 * scale,
-        78 * scale
+        center_coords[0] - 39 * x_scale_factor,
+        center_coords[1] - 39 * y_scale_factor,
+        78 * x_scale_factor,
+        78 * y_scale_factor
         )
-    if letter == None:
+    if erase:
+        pygame.draw.rect(screen, (255, 255, 255), rect)
+    elif letter == None:
+        pygame.draw.rect(screen, (255, 255, 255), rect)
         pygame.draw.rect(screen, (211, 214, 218), rect, 3)
+    elif colour_code == 3:
+        pygame.draw.rect(screen, (135, 138, 140), rect, 3)
     else:
-        try:
-            colour_value = ((120, 124, 126), (201, 180, 88), (106, 170, 100))[colour_code]
-        except IndexError:
-            colour_value = (135, 138, 140)
+        colour_value = ((120, 124, 126), (201, 180, 88), (106, 170, 100))[colour_code]
         pygame.draw.rect(screen, colour_value, rect)
-        img = font.render(letter.upper(), True, (255, 255, 255))
+
+    if letter != None:
+        if colour_code == 3:
+            letter_colour = (0, 0, 0)
+        else:
+            letter_colour = (255, 255, 255)
+        img = font.render(letter.upper(), True, letter_colour)
+        img = pygame.transform.scale_by(img, (x_scale, y_scale))
         rect = img.get_rect()
         rect.center = (center_coords)
+        screen.blit(img, rect)
+
+
+
+def draw_message(screen, scale, font, message = None):
+
+    screen_width = screen.get_size()[0]
+
+    #Erase previous message
+    rect = pygame.Rect(0, 0, screen_width, 90 * scale)
+    pygame.draw.rect(screen, (255, 255, 255), rect)
+
+    if message != None:
+        img = font.render(message, True, (255, 255, 255))
+
+        coords = (screen_width / 2, 57 * scale)
+
+        #Draw box
+        rect = pygame.Rect(0, 0, img.get_size()[0] + 40 * scale, 63 * scale)
+        rect.center = coords
+        r = round(4 * scale)
+        pygame.draw.rect(screen, (0, 0, 0), rect, 0, r, r, r, r)
+
+        #Display message
+        rect = img.get_rect()
+        rect.center = (coords)
         screen.blit(img, rect)
 
 
@@ -424,32 +481,65 @@ class Wordle_GUI_Wrapper:
 
 
     def step(self, action):
-        result = self.env.step(action)
         if not self.currently_rendered:
-            return result
+            return self.env.step(action)
         
-        state, reward, terminal, truncated, info = result
-
         scale = self.scale
         env = self.env
         screen = self.screen
 
-        #Add letters
-        new_letters = []
+        old_state = np.copy(env.state)
+        guess_num, position = env.guess_num, env.position
+
+        state, reward, terminal, truncated, info = env.step(action)
+
+        #Action is a single letter
+        if self.env.action_mode <= 3 and action >= 0 and action <= self.env.blank_letter_number:
+            added_letters = (env.alphabet[action],)
+        #Action is a sequence of letters
+        elif self.env.action_mode == 4:
+            added_letters = (env.alphabet[l] for l in action)
+        #Action is the index of a word in the vocab list
+        elif self.env.action_mode == 5:
+            added_letters = bits_to_word(env.vocab_list[action], env.alphabet)
+        #Action is backspace or enter
+        else:
+            added_letters = None
         
+        #Add letters
+        if added_letters != None:
+            row_coords = self.board_coords[guess_num]
+            for letter in added_letters:
+                coords = row_coords[position]
+                scale_up = 1
+                anim_time = 0.11333333333 * self.animation_duration
+                finish_time = time.time() + anim_time
+                while True:
+                    draw_square(
+                        screen, None, scale, coords, x_scale = scale_up, y_scale = scale_up, erase = True
+                        )
+                    scale_up = max(sin((finish_time - time.time()) / anim_time * 3.14), 0) * 0.12 + 1
+                    draw_square(
+                        screen, self.board_font, scale, coords, letter,
+                        x_scale = scale_up, y_scale = scale_up
+                        )
+                    pygame.display.update()
+                    if time.time() >= finish_time:
+                        break
+
+                old_state[0, guess_num, position] = env.alphabet.index(letter)
+                position += 1
 
         #Invalid word animation
         if info['invalid_word']:
-            for row in range(env.max_guesses):
-                if state[1, row, 0] == 255:
-                    current_row = row
-                    break
 
-            square_colours = state[1, current_row]
+            draw_message(screen, scale, self.message_font, 'Not in word list')
+
+            square_colours = old_state[1, guess_num]
             letters = [None] * env.word_length
-            for i, l in enumerate(state[0, current_row]):
-                if l != 255:
-                    letters[i] = l
+            for i, l in enumerate(old_state[0, guess_num]):
+                if l != self.env.blank_letter_number:
+                    letters[i] = env.alphabet[l]
 
             anim_time = 0.62 * self.animation_duration
             max_offset = 7
@@ -457,11 +547,11 @@ class Wordle_GUI_Wrapper:
 
             background_rect = pygame.Rect(
                 scale * (self.x_origin - 78 / 2 - max_offset),
-                scale * (105 + 86 * current_row),
+                scale * (105 + 86 * guess_num),
                 scale * (env.word_length * 85.5 + 78 + max_offset * 2),
                 scale * 94
                 )
-            row_coords = self.board_coords[current_row]
+            row_coords = self.board_coords[guess_num]
 
             start_time = time.time()
             finish_time = start_time + anim_time
@@ -479,9 +569,96 @@ class Wordle_GUI_Wrapper:
 
                 if time.time() >= finish_time:
                     break
+
+            draw_message(screen, scale, self.message_font)
+
+        correct_answer = all(state[1, guess_num] == 2)
+
+        #Flip letters, revealing colours
+        if state[1, guess_num, 0] != old_state[1, guess_num, 0]:
+
+            if guess_num + 1 == env.max_guesses and not correct_answer:
+                draw_message(screen, scale, self.message_font,
+                             bits_to_word(env.hidden_word_code, env.alphabet).upper())
+
+            row_coords = self.board_coords[guess_num]
+            for i in range(env.word_length):
+                letter = env.alphabet[state[0, guess_num, i]]
+                colour = state[1, guess_num, i]
+                coords = row_coords[i]
+
+                anim_time = self.animation_duration / 3
+                y_scale = 1
+                finish_time = time.time() + anim_time
+                while True:
+                    draw_square(screen, None, scale, coords, y_scale = y_scale * 1.1, erase = True)
+                    completion = max((finish_time - time.time()) / anim_time, 0)
+                    if completion > 0.5:
+                        colour_code = 3
+                    else:
+                        colour_code = colour
+                    y_scale = abs(cos(completion * 3.14))
+                    draw_square(screen, self.board_font, scale, coords, letter, colour_code, y_scale = y_scale)
+                    pygame.display.update()
+                    if time.time() >= finish_time:
+                        draw_square(screen, self.board_font, scale, coords, letter, colour, y_scale = 1)
+                        pygame.display.update()
+                        break
+
+            draw_message(screen, scale, self.message_font)
+
+        #Move letters up and down to celebrate if the player gets the right answer
+        if correct_answer:
+            row_coords = self.board_coords[guess_num]
+            letters = [env.alphabet[l] for l in state[0, guess_num]]
+
+            row_above_exists = guess_num != 0
+            if row_above_exists:
+                row_above_coords = self.board_coords[guess_num - 1]
+                row_above_letters = [env.alphabet[l] for l in state[0, guess_num - 1]]
+                row_above_colours = state[1, guess_num - 1]
+
+            anim_time = (5/6 + 0.1 * (env.word_length - 1)) * self.animation_duration
+            offsets = [(0.1 * i * self.animation_duration) / anim_time for i in range(env.word_length)]
+            finish_time = time.time() + anim_time
+            while True:
+                completion = 1 - max((finish_time - time.time()) / anim_time, 0)
+                for i in range(env.word_length):
+
+                    #Erase previous image
+                    rect = pygame.Rect(
+                    row_coords[i][0] - 39 * scale,
+                    row_coords[i][1] - 119 * scale,
+                    78 * scale,
+                    158 * scale
+                    )
+                    pygame.draw.rect(screen, (255, 255, 255), rect)
+
+                    if row_above_exists:
+                        draw_square(
+                            screen, self.board_font, scale, row_above_coords[i], row_above_letters[i],
+                            row_above_colours[i]
+                        )
+
+                    cell_completion = max(completion * (1 + offsets[i]) - offsets[i], 0)
+                    sin_value = sin((cell_completion * 6 - 0.5) * 3.14) + 1
+                    coords = (
+                        row_coords[i][0],
+                        row_coords[i][1] - sin_value * 37 * (1 - cell_completion) ** 2
+                    )
+                    draw_square(screen, self.board_font, scale, coords, letters[i], 2)
+                pygame.display.update()
+                if completion == 0:
+                    break
+            
         
-        self.render()
-        return result
+        #Remove deleted letters
+        for i in range(env.word_length):
+            if state[0, guess_num, i] != old_state[0, guess_num, i]:
+                draw_square(screen, None, scale, self.board_coords[guess_num][i])
+        pygame.display.update()
+
+        return state, reward, terminal, truncated, info
 
 
     def render(self):
@@ -546,7 +723,9 @@ class Wordle_GUI_Wrapper:
             rect.center = (center_coords)
             screen.blit(img, rect)
 
-        pygame.display.update()  
+        pygame.display.update()
+
+        self.message_font = pygame.font.SysFont('franklingothicdemi', round(scale * 22))
 
 
     def stop_render(self):
@@ -572,7 +751,6 @@ class Wordle_GUI_Wrapper:
                         pass
                     else:
                         state, reward, terminal, truncated, info = self.step(action)
-                        self.render()
             if terminal or truncated:
                 break
 
@@ -629,7 +807,9 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 
 
 if __name__ == '__main__':
-    env = make(
-        custom_settings = {'word_length':2},
-        custom_render_settings={'render_mode':'gui'})
-    env.play()
+    env = make(custom_render_settings={'render_mode':'gui'})
+    #env.play()
+    env.reset()
+    env.render()
+    while True:
+        env.step(random.randint(0, 25))
