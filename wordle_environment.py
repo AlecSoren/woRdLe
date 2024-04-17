@@ -480,6 +480,7 @@ class Wordle_GUI_Wrapper:
                 if time.time() >= finish_time:
                     break
         
+        self.render()
         return result
 
 
@@ -628,5 +629,7 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 
 
 if __name__ == '__main__':
-    env = make(custom_render_settings={'render_mode':'gui'})
+    env = make(
+        custom_settings = {'word_length':2},
+        custom_render_settings={'render_mode':'gui'})
     env.play()
