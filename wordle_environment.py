@@ -477,7 +477,10 @@ class Wordle_GUI_Wrapper:
 
     
     def reset(self, word = None):
-        return self.env.reset(word)
+        result = self.env.reset(word)
+        if self.currently_rendered:
+            self.render()
+        return result
 
 
     def step(self, action):
@@ -669,14 +672,16 @@ class Wordle_GUI_Wrapper:
         self.currently_rendered = True
         self.old_state = env.state
 
-        pygame.init()
         screen_width = max(880, 85.5 * env.word_length + 15) #Normally 880
         screen_height = 86 * env.max_guesses + 484 #Normally 1000
         self.screen_width, self.screen_height = screen_width, screen_height
+
+        pygame.init()
         screen = pygame.display.set_mode((scale * screen_width, scale * screen_height))
         self.screen = screen
         pygame.display.set_caption('Wordle Environment')
         screen.fill((255, 255, 255))
+        pygame.display.update()
 
         board_font = pygame.font.SysFont(None, round(scale * 68))
         self.board_font = board_font
