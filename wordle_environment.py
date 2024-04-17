@@ -808,4 +808,8 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 
 if __name__ == '__main__':
     env = make(custom_render_settings={'render_mode':'gui'})
-    env.play('magic')
+    #env.play()
+    env.reset()
+    env.render()
+    while True:
+        env.step(random.randint(0, 25))
