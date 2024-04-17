@@ -319,29 +319,32 @@ Returns:
                 return self.state, reward, terminal, truncated, self.info
 
 
+    def render(self):
+        display_string = '\n'
+        for row in range(self.max_guesses):
+            for position in range(self.word_length):
+                color = {0:'0', 1:'33', 2:'32',255:'0'}[self.state[1, row, position]]
+                letter = (self.alphabet + '.'*255)[self.state[0, row, position]]
+                display_string += f'\033[{color}m{letter}'
+            display_string += '\n'
+        display_string += '\033[0m'
+        print(display_string)
+
+
     def play(self, hidden_word = None):
         self.reset(hidden_word)
-        terminal = False
         while True:
-            display_string = '\n'
-            for row in range(self.max_guesses):
-                for position in range(self.word_length):
-                    color = {0:'0', 1:'33', 2:'32',255:'0'}[self.state[1, row, position]]
-                    letter = (self.alphabet + '.'*255)[self.state[0, row, position]]
-                    display_string += f'\033[{color}m{letter}'
-                display_string += '\n'
-            display_string += '\033[0m\n'
-            if terminal:
-                print(display_string)
-                break
-            word = input(display_string)
+            self.render()
+            word = input()
             word = tuple(self.alphabet.index(character) for character in word)
             rewards = []
             for character in word:
                 ___, reward, terminal, truncated, __ = self.step(character)
                 rewards.append(str(reward))
-                if terminal or truncated:
-                    break
+            print(' '.join(rewards))
+            if terminal or truncated:
+                self.render()
+                break
 
 
 
@@ -550,14 +553,15 @@ class Wordle_GUI_Wrapper:
         pygame.quit()
 
 
-    def play(self, keybindings = None):
+    def play(self, hidden_word = None, keybindings = None):
 
         if keybindings == None:
             keybindings = {i+97:'qwertyuiopasdfghjklzxcvbnm'.index(l)
                             for i, l in enumerate('abcdefghijklmnopqrstuvwxyz')}
-
+            
+        self.reset(hidden_word)
         self.render()
-        terminal = False
+        terminal, truncated = False, False
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.KEYDOWN:
@@ -566,10 +570,10 @@ class Wordle_GUI_Wrapper:
                     except KeyError:
                         pass
                     else:
-                        if terminal:
-                            self.reset()
                         state, reward, terminal, truncated, info = self.step(action)
                         self.render()
+            if terminal or truncated:
+                break
 
 
 
