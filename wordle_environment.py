@@ -480,6 +480,7 @@ class Wordle_GUI_Wrapper:
                 if time.time() >= finish_time:
                     break
         
+        self.render()
         return result
 
 
