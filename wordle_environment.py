@@ -404,9 +404,9 @@ def draw_square(
         pygame.draw.rect(screen, (255, 255, 255), rect)
     elif letter == None:
         pygame.draw.rect(screen, (255, 255, 255), rect)
-        pygame.draw.rect(screen, (211, 214, 218), rect, 3)
+        pygame.draw.rect(screen, (211, 214, 218), rect, round(4.5 * scale))
     elif colour_code == 3:
-        pygame.draw.rect(screen, (135, 138, 140), rect, 3)
+        pygame.draw.rect(screen, (135, 138, 140), rect, round(4.5 * scale))
     else:
         colour_value = ((120, 124, 126), (201, 180, 88), (106, 170, 100))[colour_code]
         pygame.draw.rect(screen, colour_value, rect)
@@ -428,11 +428,12 @@ def draw_message(screen, scale, font, message = None):
 
     screen_width = screen.get_size()[0]
 
-    #Erase previous message
-    rect = pygame.Rect(0, 0, screen_width, 90 * scale)
-    pygame.draw.rect(screen, (255, 255, 255), rect)
+    if message == None:
+        #Erase previous message
+        rect = pygame.Rect(0, 0, screen_width, 90 * scale)
+        pygame.draw.rect(screen, (255, 255, 255), rect)
 
-    if message != None:
+    else:
         img = font.render(message, True, (255, 255, 255))
 
         coords = (screen_width / 2, 57 * scale)
@@ -459,19 +460,24 @@ class Wordle_GUI_Wrapper:
     
         render_settings = {
             'render_mode':'gui', #'command_line' or 'gui',
-            'display_scale': 2/3,
+            'scale': 2/3,
             'animation_duration': 1.0 #1 is normal speed, 0 is instant
         }
 
         override_settings(render_settings, custom_render_settings)
 
-        for k in ('display_scale', 'animation_duration'):
+        for k in ('scale', 'animation_duration'):
             value = render_settings[k]
             if (not isinstance(value, Number)) or value <= 0:
                 raise ValueError(f'{k} must be a positive number')
 
-        self.scale = render_settings['display_scale']
+        self.scale = render_settings['scale']
         self.animation_duration = render_settings['animation_duration']
+
+        self.success_messages = ('Genius', 'Magnificent', 'Impressive', 'Splendid')[:env.max_guesses]
+        self.success_messages += ('Great',) * (env.max_guesses - 5)
+        if env.max_guesses >= 6:
+            self.success_messages += ('Phew',)
 
         self.render()
 
@@ -598,7 +604,8 @@ class Wordle_GUI_Wrapper:
                 y_scale = 1
                 finish_time = time.time() + anim_time
                 while True:
-                    draw_square(screen, None, scale, coords, y_scale = y_scale * 1.1, erase = True)
+                    draw_square(screen, None, scale, coords,
+                                x_scale = 1.1, y_scale = y_scale * 1.1, erase = True)
                     completion = max((finish_time - time.time()) / anim_time, 0)
                     if completion > 0.5:
                         colour_code = 3
@@ -616,6 +623,7 @@ class Wordle_GUI_Wrapper:
 
         #Move letters up and down to celebrate if the player gets the right answer
         if correct_answer:
+
             row_coords = self.board_coords[guess_num]
             letters = [env.alphabet[l] for l in state[0, guess_num]]
 
@@ -651,12 +659,15 @@ class Wordle_GUI_Wrapper:
                     sin_value = sin((cell_completion * 6 - 0.5) * 3.14) + 1
                     coords = (
                         row_coords[i][0],
-                        row_coords[i][1] - sin_value * 37 * (1 - cell_completion) ** 2
+                        row_coords[i][1] - (sin_value * 37 * (1 - cell_completion) ** 2) * scale
                     )
                     draw_square(screen, self.board_font, scale, coords, letters[i], 2)
+                draw_message(screen, scale, self.message_font, self.success_messages[guess_num])
                 pygame.display.update()
                 if completion == 1:
                     break
+                
+            draw_message(screen, scale, self.message_font)
         
         #Remove deleted letters
         for i in range(env.word_length):
@@ -829,5 +840,4 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 
 if __name__ == '__main__':
     env = make(custom_render_settings={'render_mode':'gui'})
-    while True:
-        env.step(random.randint(0, 25))
+    env.play()
