@@ -651,7 +651,7 @@ class Wordle_GUI_Wrapper:
                     )
                     draw_square(screen, self.board_font, scale, coords, letters[i], 2)
                 pygame.display.update()
-                if completion == 0:
+                if completion == 1:
                     break
             
         
@@ -814,7 +814,12 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 if __name__ == '__main__':
     env = make(custom_render_settings={'render_mode':'gui'})
     #env.play()
-    env.reset()
+    env.reset('magic')
     env.render()
     while True:
-        env.step(random.randint(0, 25))
+        #for i in range(5):
+        #    for i in range(5):
+        #        env.step(random.randint(0, 25))
+        for c in 'magic':
+            env.step(env.env.alphabet.index(c))
+        env.reset('magic')
