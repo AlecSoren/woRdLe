@@ -6,7 +6,15 @@ four_letter_words = ["ABET","ABLE","ABLY","ABUT","ACED","ACES","ACHE","ACHY","AC
 
 from random import shuffle
 
-for n in ('two', 'three', 'four'):
+"""
+for n in ('twenty',):
+    with open(f'word_lists/vocab_{n}_letter.txt', 'r') as file:
+        words = [line.strip().lower() for line in file]
+    with open(f'word_lists/vocab_{n}_letter.txt', 'w') as file:
+        file.write('\n'.join(words))
+"""
+
+for n in ('twenty',):
     with open(f'word_lists/vocab_{n}_letter.txt', 'r') as file:
         words = [line.strip() for line in file]
     shuffle(words)

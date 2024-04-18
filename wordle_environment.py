@@ -438,7 +438,9 @@ class Wordle_Environment:
             2 : ('word_lists/vocab_two_letter.txt', 'word_lists/hidden_words_two_letter.txt'),
             3 : ('word_lists/vocab_three_letter.txt', 'word_lists/hidden_words_three_letter.txt'),
             4 : ('word_lists/vocab_four_letter.txt', 'word_lists/hidden_words_four_letter.txt'),
-            5 : ('word_lists/vocab_five_letter.txt', 'word_lists/hidden_words_five_letter.txt')
+            5 : ('word_lists/vocab_five_letter.txt', 'word_lists/hidden_words_five_letter.txt'),
+            10 : ('word_lists/vocab_ten_letter.txt', 'word_lists/hidden_words_ten_letter.txt'),
+            20 : ('word_lists/vocab_twenty_letter.txt', 'word_lists/hidden_words_twenty_letter.txt')
         }
 
         #Check all fields that must be positive nonzero integers or iterables of positive nonzero integers
