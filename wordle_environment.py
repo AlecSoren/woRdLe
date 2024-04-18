@@ -533,8 +533,11 @@ class Wordle_GUI_Wrapper:
                 old_state[0, guess_num, position] = env.alphabet.index(letter)
                 position += 1
 
+        clear_keypress_buffer = False
+
         #Invalid word animation
         if info['invalid_word']:
+            clear_keypress_buffer = True
 
             draw_message(screen, scale, self.message_font, 'Not in word list')
 
@@ -579,6 +582,7 @@ class Wordle_GUI_Wrapper:
 
         #Flip letters, revealing colours
         if state[1, guess_num, 0] != old_state[1, guess_num, 0]:
+            clear_keypress_buffer = True
 
             if guess_num + 1 == env.max_guesses and not correct_answer:
                 draw_message(screen, scale, self.message_font,
@@ -653,13 +657,19 @@ class Wordle_GUI_Wrapper:
                 pygame.display.update()
                 if completion == 1:
                     break
-            
         
         #Remove deleted letters
         for i in range(env.word_length):
             if state[0, guess_num, i] != old_state[0, guess_num, i]:
                 draw_square(screen, None, scale, self.board_coords[guess_num][i])
         pygame.display.update()
+
+        self.keypress_buffer = pygame.event.get()
+        for event in self.keypress_buffer:
+            if event.type == pygame.QUIT:
+                self.stop_render()
+        if clear_keypress_buffer:
+            self.keypress_buffer = []
 
         return state, reward, terminal, truncated, info
 
@@ -671,6 +681,7 @@ class Wordle_GUI_Wrapper:
 
         self.currently_rendered = True
         self.old_state = env.state
+        self.keypress_buffer = []
 
         screen_width = max(880, 85.5 * env.word_length + 15) #Normally 880
         screen_height = 86 * env.max_guesses + 484 #Normally 1000
@@ -748,7 +759,9 @@ class Wordle_GUI_Wrapper:
         self.render()
         terminal, truncated = False, False
         while True:
-            for event in pygame.event.get():
+            events = [e for e in pygame.event.get()] + self.keypress_buffer
+            self.keypress_buffer = []
+            for event in events:
                 if event.type == pygame.KEYDOWN:
                     try:
                         action = keybindings[event.key]
@@ -756,7 +769,10 @@ class Wordle_GUI_Wrapper:
                         pass
                     else:
                         state, reward, terminal, truncated, info = self.step(action)
-            if terminal or truncated:
+                elif event.type == pygame.QUIT:
+                    self.stop_render()
+                    return
+            if terminal or truncated or not self.currently_rendered:
                 break
 
 
@@ -812,6 +828,6 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 
 
 if __name__ == '__main__':
-    env = make(custom_settings = {'word_length':2},
-        custom_render_settings={'render_mode':'gui'})
-    env.play('of')
+    env = make(custom_render_settings={'render_mode':'gui'})
+    while True:
+        env.step(random.randint(0, 25))
