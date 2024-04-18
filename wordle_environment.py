@@ -50,6 +50,355 @@ def bits_to_word(bits, alphabet):
 
 class Wordle_Environment:
 
+    # 1 = Full control over all keys. Backspace: -1, enter: -2
+    # 2 = Controls letter keys and backspace, but automatically presses enter after filling row.
+    # 3 = Controls letter keys only. Automatically enters after five letters and clears row if invalid.
+    # 4 = Inputs one row at a time.
+    # 5 = Chooses word from vocab list.
+
+    def __step_mode_1(self, action):
+        self.step_count += 1
+        self.info['step'] = self.step_count
+        self.info['invalid_word'] = False
+        self.info['incomplete_word'] = False
+
+        reward = self.step_reward
+        terminal = False
+        truncated = self.step_count == self.truncation_limit
+
+        #Backspace
+        if action == -1:
+            reward += self.backspace_reward
+            if self.position != 0:
+                self.position -= 1
+                self.state[0, self.guess_num, self.position] = self.blank_letter_number
+                self.current_row[self.position] = self.blank_letter_number
+                self.current_row_code >>= 5
+
+        #Enter
+        elif action == -2:
+
+            #At the end of a row - make a guess
+            if self.position == self.word_length:
+
+                if self.current_row_code == self.hidden_word_code:
+                    terminal = True
+                    reward += self.correct_guess_rewards[self.guess_num] + self.valid_word_reward
+                    self.state[1, self.guess_num] = 2
+
+                    self.position = 0
+                    self.current_row_code = 0
+                    self.current_row = [self.blank_letter_number] * self.word_length
+
+                elif self.current_row_code in self.vocab:
+                    current_row_counts = {letter: 0 for letter in self.current_row}
+                    row_reward = 0
+                    for i, letter in enumerate(self.current_row):
+                        if letter == self.hidden_word[i]:
+                            current_row_counts[letter] += 1
+                    for i, letter in enumerate(self.current_row):
+                        if letter == self.hidden_word[i]:
+                            self.state[1, self.guess_num, i] = 2
+                            row_reward += self.green_reward
+                        elif letter in self.hidden_word_as_set:
+                            current_row_counts[letter] += 1
+                            if current_row_counts[letter] <= self.hidden_word_counts[letter]:
+                                self.state[1, self.guess_num, i] = 1
+                                row_reward += self.yellow_reward
+                            else:
+                                self.state[1, self.guess_num, i] = 0
+                                row_reward += self.grey_reward
+
+                        else:
+                            self.state[1, self.guess_num, i] = 0
+                            row_reward += self.grey_reward
+
+                    if self.guess_num == self.max_guesses - 1:
+                        terminal = True
+                        reward += row_reward
+                    else:
+                        self.guess_num += 1
+                        self.position = 0
+                        self.current_row_code = 0
+                        self.current_row = [self.blank_letter_number] * self.word_length
+                    reward += self.valid_word_reward
+
+                else:
+                    reward += self.invalid_word_reward
+                    self.info['invalid_word'] = True
+
+            #Word is incomplete
+            else:
+                reward += self.invalid_word_reward
+                self.info['incomplete_word'] = True
+
+        #Letter
+        elif self.position != self.word_length:
+            self.state[0, self.guess_num, self.position] = action
+            self.current_row[self.position] = action
+            self.current_row_code = self.current_row_code << 5 | action
+            self.position += 1
+
+        return self.state, reward, terminal, truncated, self.info
+
+
+    def __step_mode_2(self, action):
+        self.step_count += 1
+        self.info['step'] = self.step_count
+        self.info['invalid_word'] = False
+
+        reward = self.step_reward
+        terminal = False
+        truncated = self.step_count == self.truncation_limit
+
+        #Backspace
+        if action == -1:
+            reward += self.backspace_reward
+            if self.position != 0:
+                self.position -= 1
+                self.state[0, self.guess_num, self.position] = self.blank_letter_number
+                self.current_row[self.position] = self.blank_letter_number
+                self.current_row_code >>= 5
+
+        #Letter
+        elif self.position != self.word_length:
+            self.state[0, self.guess_num, self.position] = action
+            self.current_row[self.position] = action
+            self.current_row_code = self.current_row_code << 5 | action
+            self.position += 1
+
+        #Reached the end of a row
+        if self.position == self.word_length:
+
+            if self.current_row_code == self.hidden_word_code:
+                terminal = True
+                reward += self.correct_guess_rewards[self.guess_num] + self.valid_word_reward
+                self.state[1, self.guess_num] = 2
+
+                self.position = 0
+                self.current_row_code = 0
+                self.current_row = [self.blank_letter_number] * self.word_length
+
+            elif self.current_row_code in self.vocab:
+                current_row_counts = {letter: 0 for letter in self.current_row}
+                row_reward = 0
+                for i, letter in enumerate(self.current_row):
+                    if letter == self.hidden_word[i]:
+                        current_row_counts[letter] += 1
+                for i, letter in enumerate(self.current_row):
+                    if letter == self.hidden_word[i]:
+                        self.state[1, self.guess_num, i] = 2
+                        row_reward += self.green_reward
+                    elif letter in self.hidden_word_as_set:
+                        current_row_counts[letter] += 1
+                        if current_row_counts[letter] <= self.hidden_word_counts[letter]:
+                            self.state[1, self.guess_num, i] = 1
+                            row_reward += self.yellow_reward
+                        else:
+                            self.state[1, self.guess_num, i] = 0
+                            row_reward += self.grey_reward
+
+                    else:
+                        self.state[1, self.guess_num, i] = 0
+                        row_reward += self.grey_reward
+
+                if self.guess_num == self.max_guesses - 1:
+                    terminal = True
+                    reward += row_reward
+                else:
+                    self.guess_num += 1
+                    self.position = 0
+                    self.current_row_code = 0
+                    self.current_row = [self.blank_letter_number] * self.word_length
+
+                reward += self.valid_word_reward
+
+            else:
+                reward += self.invalid_word_reward
+                self.info['invalid_word'] = True
+
+        return self.state, reward, terminal, truncated, self.info
+
+
+    def __step_mode_3(self, action):
+        self.step_count += 1
+        self.info['step'] = self.step_count
+        self.info['invalid_word'] = False
+
+        reward = self.step_reward
+        terminal = False
+        truncated = self.step_count == self.truncation_limit
+
+        self.state[0, self.guess_num, self.position] = action
+        self.current_row[self.position] = action
+        self.current_row_code = self.current_row_code << 5 | action
+        self.position += 1
+
+        #Reached the end of a row
+        if self.position == self.word_length:
+
+            if self.current_row_code == self.hidden_word_code:
+                terminal = True
+                reward += self.correct_guess_rewards[self.guess_num] + self.valid_word_reward
+                self.state[1, self.guess_num] = 2
+
+            elif self.current_row_code in self.vocab:
+                current_row_counts = {letter: 0 for letter in self.current_row}
+                row_reward = 0
+                for i, letter in enumerate(self.current_row):
+                    if letter == self.hidden_word[i]:
+                        current_row_counts[letter] += 1
+                for i, letter in enumerate(self.current_row):
+                    if letter == self.hidden_word[i]:
+                        self.state[1, self.guess_num, i] = 2
+                        row_reward += self.green_reward
+                    elif letter in self.hidden_word_as_set:
+                        current_row_counts[letter] += 1
+                        if current_row_counts[letter] <= self.hidden_word_counts[letter]:
+                            self.state[1, self.guess_num, i] = 1
+                            row_reward += self.yellow_reward
+                        else:
+                            self.state[1, self.guess_num, i] = 0
+                            row_reward += self.grey_reward
+
+                    else:
+                        self.state[1, self.guess_num, i] = 0
+                        row_reward += self.grey_reward
+
+                if self.guess_num == self.max_guesses - 1:
+                    terminal = True
+                    reward += row_reward
+                else:
+                    self.guess_num += 1
+
+                reward += self.valid_word_reward
+
+            else:
+                self.state[0, self.guess_num] = self.blank_letter_number
+                reward += self.invalid_word_reward
+                self.info['invalid_word'] = True
+
+            self.position = 0
+            self.current_row_code = 0
+            self.current_row = [self.blank_letter_number] * self.word_length
+
+        return self.state, reward, terminal, truncated, self.info
+
+
+    def __step_mode_4(self, action):
+        self.step_count += 1
+        self.info['step'] = self.step_count
+        self.info['invalid_word'] = False
+
+        reward = self.step_reward
+        terminal = False
+        truncated = self.step_count == self.truncation_limit
+
+        #Calculate row code
+        row_code = 0
+        for l in action:
+            row_code = row_code << 5 | l
+        
+        #Correct guess
+        if row_code == self.hidden_word_code:
+            terminal = True
+            reward += self.correct_guess_rewards[self.guess_num] + self.valid_word_reward
+            self.state[0, self.guess_num] = action
+            self.state[1, self.guess_num] = 2
+
+        elif row_code in self.vocab:
+            self.state[0, self.guess_num] = action
+            current_row_counts = {letter: 0 for letter in action}
+            row_reward = 0
+            for i, letter in enumerate(action):
+                if letter == self.hidden_word[i]:
+                    current_row_counts[letter] += 1
+            for i, letter in enumerate(action):
+                if letter == self.hidden_word[i]:
+                    self.state[1, self.guess_num, i] = 2
+                    row_reward += self.green_reward
+                elif letter in self.hidden_word_as_set:
+                    current_row_counts[letter] += 1
+                    if current_row_counts[letter] <= self.hidden_word_counts[letter]:
+                        self.state[1, self.guess_num, i] = 1
+                        row_reward += self.yellow_reward
+                    else:
+                        self.state[1, self.guess_num, i] = 0
+                        row_reward += self.grey_reward
+
+                else:
+                    self.state[1, self.guess_num, i] = 0
+                    row_reward += self.grey_reward
+
+            if self.guess_num == self.max_guesses - 1:
+                terminal = True
+                reward += row_reward
+            else:
+                self.guess_num += 1
+
+            reward += self.valid_word_reward
+
+        else:
+            self.info['invalid_word'] = True
+            reward += self.invalid_word_reward
+
+        return self.state, reward, terminal, truncated, self.info
+
+
+    def __step_mode_5(self, action):
+        self.step_count += 1
+        self.info['step'] = self.step_count
+
+        reward = self.step_reward + self.valid_word_reward
+        terminal = False
+        truncated = self.step_count == self.truncation_limit
+
+        row_code = self.vocab_list[action]
+        word = []
+        for i in range(self.word_length - 1, -1, -1):
+            letter_code = (row_code & self.bitmasks[i]) >> (i * 5)
+            word.append(letter_code)
+        
+        #Correct guess
+        if row_code == self.hidden_word_code:
+            terminal = True
+            reward += self.correct_guess_rewards[self.guess_num]
+            self.state[0, self.guess_num] = word
+            self.state[1, self.guess_num] = 2
+
+        else:
+            self.state[0, self.guess_num] = word
+            current_row_counts = {letter: 0 for letter in word}
+            row_reward = 0
+            for i, letter in enumerate(word):
+                if letter == self.hidden_word[i]:
+                    current_row_counts[letter] += 1
+            for i, letter in enumerate(word):
+                if letter == self.hidden_word[i]:
+                    self.state[1, self.guess_num, i] = 2
+                    row_reward += self.green_reward
+                elif letter in self.hidden_word_as_set:
+                    current_row_counts[letter] += 1
+                    if current_row_counts[letter] <= self.hidden_word_counts[letter]:
+                        self.state[1, self.guess_num, i] = 1
+                        row_reward += self.yellow_reward
+                    else:
+                        self.state[1, self.guess_num, i] = 0
+                        row_reward += self.grey_reward
+
+                else:
+                    self.state[1, self.guess_num, i] = 0
+                    row_reward += self.grey_reward
+
+            if self.guess_num == self.max_guesses - 1:
+                terminal = True
+                reward += row_reward
+            else:
+                self.guess_num += 1
+
+        return self.state, reward, terminal, truncated, self.info
+
+
     def __init__(self, custom_settings = {}):
 
         settings = {
@@ -165,6 +514,13 @@ class Wordle_Environment:
         if settings['action_mode'] not in (1, 2, 3, 4, 5):
             raise ValueError('action_mode must be 1, 2, 3, 4 or 5')
         self.action_mode = settings['action_mode']
+        self.step = (
+            self.__step_mode_1,
+            self.__step_mode_2,
+            self.__step_mode_3,
+            self.__step_mode_4,
+            self.__step_mode_5
+        )[self.action_mode - 1]
 
         self.max_guesses = settings['max_guesses']
 
@@ -189,8 +545,8 @@ class Wordle_Environment:
         
         self.truncation_limit = settings['truncation_limit']
 
-        if self.action_mode != 3:
-            raise NotImplementedError('action modes other than 3 have not been implemented yet')
+        #if self.action_mode != 3:
+        #    raise NotImplementedError('action modes other than 3 have not been implemented yet')
 
 
     def reset(self, word = None):
@@ -246,95 +602,11 @@ Returns:
         self.info = {
             'hidden_word': self.hidden_word_code,
             'step': 0,
-            'invalid_word': False
+            'invalid_word': False,
+            'incomplete_word': False
         }
         return (self.state, self.info)
     
-
-    def step(self, action):
-        self.step_count += 1
-        self.info['step'] = self.step_count
-        self.info['invalid_word'] = False
-
-        reward = self.step_reward
-        terminal = False
-        truncated = self.step_count == self.truncation_limit
-
-        # 1 = Full control over all keys.
-        # 2 = Controls letter keys and backspace, but automatically presses enter after filling row.
-        # 3 = Controls letter keys only. Automatically enters after five letters and clears row if invalid.
-        # 4 = Inputs one row at a time.
-        # 5 = Chooses word from vocab list.
-        match self.action_mode:
-
-            case 1:
-
-                #Backspace
-                if action == 255:
-                    reward += self.backspace_reward
-                    if self.position != 0:
-                        self.position -= 1
-                        self.state[0, self.guess_num, self.position] = 255
-                elif action == 254:
-                    if self.position == self.word_length:
-                        pass
-                    else:
-                        reward += self.invalid_word_reward
-
-            case 3:
-                self.state[0, self.guess_num, self.position] = action
-                self.current_row[self.position] = action
-                self.current_row_code = self.current_row_code << 5 | action
-                self.position += 1
-
-                #Reached the end of a row
-                if self.position == self.word_length:
-
-                    if self.current_row_code == self.hidden_word_code:
-                        terminal = True
-                        reward = self.correct_guess_rewards[self.guess_num]
-                        self.state[1, self.guess_num] = 2
-
-                    elif self.current_row_code in self.vocab:
-                        current_row_counts = {letter: 0 for letter in self.current_row}
-                        row_reward = 0
-                        for i, letter in enumerate(self.current_row):
-                            if letter == self.hidden_word[i]:
-                                current_row_counts[letter] += 1
-                        for i, letter in enumerate(self.current_row):
-                            if letter == self.hidden_word[i]:
-                                self.state[1, self.guess_num, i] = 2
-                                row_reward += self.green_reward
-                            elif letter in self.hidden_word_as_set:
-                                current_row_counts[letter] += 1
-                                if current_row_counts[letter] <= self.hidden_word_counts[letter]:
-                                    self.state[1, self.guess_num, i] = 1
-                                    row_reward += self.yellow_reward
-                                else:
-                                    self.state[1, self.guess_num, i] = 0
-                                    row_reward += self.grey_reward
-
-                            else:
-                                self.state[1, self.guess_num, i] = 0
-                                row_reward += self.grey_reward
-
-                        if self.guess_num == self.max_guesses - 1:
-                            terminal = True
-                            reward += row_reward
-                        else:
-                            self.guess_num += 1
-
-                    else:
-                        self.state[0, self.guess_num] = self.blank_letter_number
-                        reward += self.invalid_word_reward
-                        self.info['invalid_word'] = True
-
-                    self.position = 0
-                    self.current_row_code = 0
-                    self.current_row = [self.blank_letter_number] * self.word_length
-
-                return self.state, reward, terminal, truncated, self.info
-
 
     def render(self):
         display_string = '\n'
@@ -352,12 +624,29 @@ Returns:
         self.reset(hidden_word)
         while True:
             self.render()
-            word = input()
-            word = tuple(self.alphabet.index(character) for character in word)
+
+            user_input = input()
+
+            if self.action_mode <= 3:
+                actions = []
+                for c in user_input:
+                    if c in ('1', '2'):
+                        actions.append(- int(c))
+                    else:
+                        actions.append(self.alphabet.index(c))
+
+            elif self.action_mode == 4:
+                actions = (tuple(self.alphabet.index(character) for character in user_input),)
+
+            elif self.action_mode == 5:
+                actions = (int(user_input),)
+
             rewards = []
-            for character in word:
-                ___, reward, terminal, truncated, __ = self.step(character)
+            for a in actions:
+                ___, reward, terminal, truncated, __ = self.step(a)
                 rewards.append(str(reward))
+                if terminal or truncated:
+                    break
             print(' '.join(rewards))
             if terminal or truncated:
                 self.render()
@@ -453,6 +742,19 @@ def draw_message(screen, scale, font, message = None):
 
 class Wordle_GUI_Wrapper:
 
+    def __initalise_pygame(self):
+        screen_width = max(880, 85.5 * self.env.word_length + 15) #Normally 880
+        screen_height = 86 * self.env.max_guesses + 484 #Normally 1000
+        self.screen_width, self.screen_height = screen_width, screen_height
+
+        pygame.init()
+        screen = pygame.display.set_mode((self.scale * screen_width, self.scale * screen_height))
+        self.screen = screen
+        pygame.display.set_caption('Wordle Environment')
+        screen.fill((255, 255, 255))
+        pygame.display.update()
+
+
     def __init__(self, env = None, custom_render_settings = {}):
 
         self.env = env
@@ -516,7 +818,7 @@ class Wordle_GUI_Wrapper:
             added_letters = None
         
         #Add letters
-        if added_letters != None:
+        if added_letters != None and position != env.word_length:
             row_coords = self.board_coords[guess_num]
             for letter in added_letters:
                 coords = row_coords[position]
@@ -542,10 +844,14 @@ class Wordle_GUI_Wrapper:
         clear_keypress_buffer = False
 
         #Invalid word animation
-        if info['invalid_word']:
+        if info['invalid_word'] or info['incomplete_word']:
             clear_keypress_buffer = True
 
-            draw_message(screen, scale, self.message_font, 'Not in word list')
+            if info['invalid_word']:
+                message = 'Not in word list'
+            else:
+                message = 'Not enough letters'
+            draw_message(screen, scale, self.message_font, message)
 
             square_colours = old_state[1, guess_num]
             letters = [None] * env.word_length
@@ -735,16 +1041,15 @@ class Wordle_GUI_Wrapper:
         self.old_state = env.state
         self.keypress_buffer = []
 
-        screen_width = max(880, 85.5 * env.word_length + 15) #Normally 880
-        screen_height = 86 * env.max_guesses + 484 #Normally 1000
-        self.screen_width, self.screen_height = screen_width, screen_height
+        self.__initalise_pygame()
+        screen_width, screen_height = self.screen_width, self.screen_height
+        screen = self.screen
 
-        pygame.init()
-        screen = pygame.display.set_mode((scale * screen_width, scale * screen_height))
-        self.screen = screen
-        pygame.display.set_caption('Wordle Environment')
-        screen.fill((255, 255, 255))
-        pygame.display.update()
+        self.backspace_icon = pygame.image.load('gui_images/backspace_icon.png').convert()
+        self.backspace_icon = pygame.transform.smoothscale_by(self.backspace_icon, self.scale)
+
+        enter_icon_font = pygame.font.SysFont(None, round(self.scale * 26))
+        self.enter_icon = enter_icon_font.render('ENTER', True, (0, 0, 0))
 
         board_font = pygame.font.SysFont(None, round(scale * 68))
         self.board_font = board_font
@@ -791,6 +1096,36 @@ class Wordle_GUI_Wrapper:
             rect.center = (center_coords)
             screen.blit(img, rect)
 
+        #Backspace key
+        if env.action_mode <= 2:
+            box_rect = pygame.Rect(
+                    (screen_width / 2 + 261) * scale,
+                    (screen_height - 164) * scale,
+                    98 * scale,
+                    87 * scale
+                    )
+            r = round(4 * scale)
+            pygame.draw.rect(screen, (211, 214, 218), box_rect, 0, r, r, r, r)
+
+            img_rect = self.backspace_icon.get_rect()
+            img_rect.center = box_rect.center
+            screen.blit(self.backspace_icon, img_rect)
+
+        #Enter key
+        if env.action_mode == 1:
+            box_rect = pygame.Rect(
+                    (screen_width / 2 - 367) * scale,
+                    (screen_height - 164) * scale,
+                    98 * scale,
+                    87 * scale
+                    )
+            r = round(4 * scale)
+            pygame.draw.rect(screen, (211, 214, 218), box_rect, 0, r, r, r, r)
+
+            img_rect = self.enter_icon.get_rect()
+            img_rect.center = box_rect.center
+            screen.blit(self.enter_icon, img_rect)
+
         pygame.display.update()
 
         self.message_font = pygame.font.SysFont('franklingothicdemi', round(scale * 22))
@@ -804,12 +1139,25 @@ class Wordle_GUI_Wrapper:
     def play(self, hidden_word = None, keybindings = None):
 
         if keybindings == None:
-            keybindings = {i+97:'qwertyuiopasdfghjklzxcvbnm'.index(l)
-                            for i, l in enumerate('abcdefghijklmnopqrstuvwxyz')}
+            if self.env.action_mode <= 4:
+                keybindings = {
+                    i+97:'qwertyuiopasdfghjklzxcvbnm'.index(l) for i, l in enumerate('abcdefghijklmnopqrstuvwxyz')
+                }
+                if self.env.action_mode <= 2:
+                    keybindings[8] = -1
+                    if self.env.action_mode == 1:
+                        keybindings[13] = -2
+            if self.env.action_mode == 5:
+                keybindings = {i+48:i for i in range(10)}
+                keybindings[13] = -2
             
         self.reset(hidden_word)
         self.render()
         terminal, truncated = False, False
+
+        action_buffer = []
+        action_counter = 0
+
         while True:
             events = [e for e in pygame.event.get()] + self.keypress_buffer
             self.keypress_buffer = []
@@ -820,10 +1168,27 @@ class Wordle_GUI_Wrapper:
                     except KeyError:
                         pass
                     else:
-                        state, reward, terminal, truncated, info = self.step(action)
+
+                        if self.env.action_mode <= 3:
+                            state, reward, terminal, truncated, info = self.step(action)
+
+                        elif self.env.action_mode == 4:
+                            action_buffer.append(action)
+                            if len(action_buffer) == self.env.word_length:
+                                state, reward, terminal, truncated, info = self.step(action_buffer)
+                                action_buffer = []
+
+                        elif self.env.action_mode == 5:
+                            if action == -2:
+                                state, reward, terminal, truncated, info = self.step(action_counter)
+                                action_counter = 0
+                            else:
+                                action_counter = action_counter * 10 + action
+
                 elif event.type == pygame.QUIT:
                     self.stop_render()
                     return
+                
             if terminal or truncated or not self.currently_rendered:
                 break
 
@@ -880,5 +1245,5 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 
 
 if __name__ == '__main__':
-    env = make(custom_render_settings={'render_mode':'gui'})
+    env = make(custom_render_settings = {'render_mode':'gui'})
     env.play()
