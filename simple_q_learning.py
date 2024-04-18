@@ -64,7 +64,11 @@ def q_learning(env, episode_limit, step_size, epsilon, discount_factor, initial_
 
 
 
-custom_settings = {'word_length':5,'truncation_limit':1000}
+custom_settings = {
+    'word_length':2,
+    'truncation_limit':1000
+}
+custom_render_settings = {'render_mode':'gui'}
 episodes = 1000000
 env = wordle_environment.make(custom_settings)
 
@@ -78,12 +82,16 @@ except FileNotFoundError:
 else:
     print('Loaded Q-table from file')
 
-q_table, rewards_per_episode = q_learning(env, episodes, 0.5, 0.001, 0.5, 0, q_table)
+#q_table, rewards_per_episode = q_learning(env, episodes, 0.5, 0.001, 0.99, 0, q_table)
 
 file_path = 'q_table_archive/q_table_' + datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + '.json'
 encoded_q_table = {base64.b64encode(k).decode('utf-8'):q_table[k] for k in q_table}
 with open(file_path, 'w') as f:
     json.dump(encoded_q_table, f)
 
-print('Initial average reward: ' + str(np.average(rewards_per_episode[:1000])))
-print('Final average reward: ' + str(np.average(rewards_per_episode[1000:])))
+#print('Initial average reward: ' + str(np.average(rewards_per_episode[:1000])))
+#print('Final average reward: ' + str(np.average(rewards_per_episode[1000:])))
+
+env = wordle_environment.make(custom_settings, custom_render_settings)
+env.render()
+q_table, rewards_per_episode = q_learning(env, episodes, 0.5, 0.001, 0.99, 0, q_table)

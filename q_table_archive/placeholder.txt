@@ -1,0 +1,1 @@
+Git won't track the directory unless it has a file in it
