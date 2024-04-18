@@ -1198,7 +1198,9 @@ class Wordle_GUI_Wrapper:
 
 def make(custom_settings = {}, custom_render_settings = {}):
     """
-Returns a Wordle environment instance. Accepts a dictionary with any of the following fields:
+Returns a Wordle environment instance.
+
+Accepts a custom settings dictionary with any of the following fields:
 
 - 'word_length' - 5 by default. If not 2-5, you must specify a 'vocab_file' and 'hidden_words_file'.
 - 'alphabet' - Valid characters the player can input. 'abcdefghijklmnopqrstuvwxyz' by default.
@@ -1229,6 +1231,12 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 - 'step_reward' - Reward applied at every step in addition to state-specific rewards. 0 by default.
 
 - 'truncation_limit' - If specified, will truncate each episode after this many steps.
+
+And a custom render settings dictionary with any of the following fields:
+
+- 'render_mode' - Either 'command_line' or 'gui'.
+- 'scale' - Factor by which to scale the window. Default is 2/3
+- 'animation_duration' - Factor by which animation times are multiplied. 1 is normal speed, 0 is instant.
     """
     
     env = Wordle_Environment(custom_settings)
