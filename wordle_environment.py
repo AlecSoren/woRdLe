@@ -377,7 +377,7 @@ def key_coords(index, scale, screen_width, screen_height):
 
 
 def get_letter_colours(state, max_guesses, word_length, alphabet):
-    letter_colours = [-1] * len(alphabet)
+    letter_colours = [3] * len(alphabet)
     for x in range(max_guesses):
         for y in range(word_length):
             letter_code, colour_code = state[:, x, y]
@@ -593,10 +593,13 @@ class Wordle_GUI_Wrapper:
             if guess_num + 1 == env.max_guesses and not correct_answer:
                 draw_message(screen, scale, self.message_font,
                              bits_to_word(env.hidden_word_code, env.alphabet).upper())
+                
+            changed_key_colours = []
 
             row_coords = self.board_coords[guess_num]
             for i in range(env.word_length):
-                letter = env.alphabet[state[0, guess_num, i]]
+                l = state[0, guess_num, i]
+                letter = env.alphabet[l]
                 colour = state[1, guess_num, i]
                 coords = row_coords[i]
 
@@ -618,6 +621,44 @@ class Wordle_GUI_Wrapper:
                         draw_square(screen, self.board_font, scale, coords, letter, colour, y_scale = 1)
                         pygame.display.update()
                         break
+
+                if (colour + 1) % 4 > (self.letter_colours[l] + 1) % 4:
+                    self.letter_colours[l] = colour
+                    changed_key_colours.append(l)
+
+            #Change keyboard colours
+            for l in changed_key_colours:
+                letter = env.alphabet[l]
+                c = self.letter_colours[l]
+                coords = self.key_coords[l]
+
+                #Erase previous key colour
+                slightly_bigger_scale = scale * 1.1
+                bg_rect = (
+                    coords[0] - 32.5 * slightly_bigger_scale,
+                    coords[1] - 43.5 * slightly_bigger_scale,
+                    65 * slightly_bigger_scale,
+                    87 * slightly_bigger_scale
+                )
+                pygame.draw.rect(screen, (255, 255, 255), bg_rect)
+
+                #Draw background rectangle
+                rectangle_colour = ((120, 124, 126), (201, 180, 88), (106, 170, 100), (211, 214, 218))[c]
+                bg_rect = (
+                    coords[0] - 32.5 * scale,
+                    coords[1] - 43.5 * scale,
+                    65 * scale,
+                    87 * scale
+                )
+                r = round(4 * scale)
+                pygame.draw.rect(screen, rectangle_colour, bg_rect, 0, r, r, r, r)
+
+                #Draw letter
+                letter_colour = ((255, 255, 255), (255, 255, 255), (255, 255, 255), 0)[c]
+                img = self.keyboard_font.render(letter.upper(), True, letter_colour)
+                rect = img.get_rect()
+                rect.center = (coords)
+                screen.blit(img, rect)
 
             draw_message(screen, scale, self.message_font)
 
@@ -726,12 +767,12 @@ class Wordle_GUI_Wrapper:
             board_coords.append(row_coords)
         self.board_coords = board_coords
 
-        keyboard_font = pygame.font.SysFont(None, round(scale * 42))
-        letter_colours = get_letter_colours (
+        self.keyboard_font = pygame.font.SysFont(None, round(scale * 42))
+        self.letter_colours = get_letter_colours (
             env.state, env.max_guesses, env.word_length, alphabet
             )
         self.key_coords = [key_coords(i, scale, screen_width, screen_height) for i in range(len(alphabet))]
-        for i, colour in enumerate(letter_colours):
+        for i, colour in enumerate(self.letter_colours):
             center_coords = self.key_coords[i]
 
             rectangle_colour = ((120, 124, 126), (201, 180, 88), (106, 170, 100), (211, 214, 218))[colour]
@@ -745,7 +786,7 @@ class Wordle_GUI_Wrapper:
             pygame.draw.rect(screen, rectangle_colour, bg_rect, 0, r, r, r, r)
             
             letter_colour = ((255, 255, 255), (255, 255, 255), (255, 255, 255), 0)[colour]
-            img = keyboard_font.render(alphabet[i].upper(), True, letter_colour)
+            img = self.keyboard_font.render(alphabet[i].upper(), True, letter_colour)
             rect = img.get_rect()
             rect.center = (center_coords)
             screen.blit(img, rect)
