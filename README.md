@@ -6,7 +6,9 @@ Requires NumPy and pygame
 ## Getting started:
 
 import wordle_environment
+
 env = wordle_environment.make()
+
 env.play()
 
 ## make()
@@ -14,26 +16,21 @@ env.play()
 Returns a Wordle environment instance.
 
 Optionally, accepts a custom_settings dictionary with any of the following fields:
-
 - 'word_length' - 5 by default. If not 2-5, you must specify a 'vocab_file' and 'hidden_words_file'.
 - 'alphabet' - Valid characters the player can input. 'abcdefghijklmnopqrstuvwxyz' by default.
 - 'vocab_file' - Path to a text file containing the valid word list.
 - 'hidden_words_file' - Path to a text file containing all possible hidden/answer words.
-
 - 'max_hidden_word_options' - If specified, plays with a pseudorandom subset of the hidden word list.
 Gradually increase the subset size to make it easier for the agent at the start.
 - 'hidden_word_subset_seed' - Determines the order in which words are chosen for the subset.
 Make sure to use the same seed each time, or it will choose a new random subset of words.
-
 - 'action_mode' - How much control over input is given to the agent. 3 by default.
     - 1 = Full control over all keys. Backspace is -1, enter is -2
     - 2 = Controls letter keys and backspace (-1), but automatically presses enter after filling row.
     - 3 = Controls letter keys only. Automatically enters after five letters and clears row if invalid.
     - 4 = Inputs one row at a time. Each action must be an iterable.
     - 5 = Chooses word from vocab list.
-
 - 'max_guesses' - The number of rows on the Wordle board. 6 by default.
-
 - 'correct_guess_rewards' - Iterable containing rewards for a correct guess after i incorrect guesses,
 where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 - 'final_guess_rewards' - Iterable containing rewards for grey, yellow and green letters in the final guess.
@@ -42,11 +39,9 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 - 'valid_word_reward' - Reward given when a valid word is entered. 0 by default.
 - 'backspace_reward' - Reward given when backspace is inputted. 0 by default.
 - 'step_reward' - Reward applied at every step in addition to state-specific rewards. 0 by default.
-
 - 'truncation_limit' - If specified, will truncate each episode after this many steps.
 
 Also optionally accepts a custom_render_settings dictionary with any of the following fields:
-
 - 'render_mode' - Either 'command_line' or 'gui'.
 - 'scale' - Factor by which to scale the window. Default is 2/3
 - 'animation_duration' - Factor by which animation times are multiplied. 1 is normal speed, 0 is instant.
