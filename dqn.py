@@ -1,6 +1,7 @@
 import numpy as np
 from tensorflow import keras
 import wordle_environment
+import time
 
 
 # Convert an array of environment states to an array of inputs compatible with neural networks using one hot encoding
@@ -14,7 +15,7 @@ def convert_state_to_input(state):
 
 def create_dqn_nn(input_size):
     nn = keras.models.Sequential([
-        keras.Input(input_size),
+        keras.Input((input_size,)),
         keras.layers.Dense(128, activation='relu'),
         keras.layers.Dense(128, activation='relu'),
         keras.layers.Dense(128, activation='relu'),
@@ -39,8 +40,10 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
 
     for episode_i in range(num_episodes):
         state = env.reset()[0]
-        terminal = False
-        while not terminal:
+        terminal, truncated = False, False
+        total_reward = 0
+        while not (terminal or truncated):
+            start_time = time.time()
             # Epsilon greedy action choice
             if np.random.random() < epsilon:
                 action = np.random.randint(26)
@@ -48,7 +51,8 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
                 action = np.argmax(q1.predict(convert_state_to_input(state), verbose=0))
 
             # Take step and add experience to replay buffer
-            next_state, reward, terminal, _, _ = env.step(action)
+            next_state, reward, terminal, truncated, _ = env.step(action)
+            total_reward += reward
             replay_buffer[replay_buffer_insert_i] = (state, action, reward, next_state, terminal)
             replay_buffer_insert_i = (replay_buffer_insert_i + 1) % replay_buffer_size
             replay_buffer_samples = min(replay_buffer_samples + 1, replay_buffer_size)
@@ -71,13 +75,15 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
             if network_update_count >= network_transfer_freq:
                 q2.set_weights(q1.get_weights())
                 network_update_count = 0
+            
+        print((episode_i, total_reward))
 
 
 custom_settings = {
     'word_length': 2,
-    'truncation_limit': 1000
+    'truncation_limit': 50
 }
-custom_render_settings = {'render_mode': 'gui'}
+custom_render_settings = {'render_mode': 'command_line'}
 environment = wordle_environment.make(custom_settings, custom_render_settings)
 
 dqn(environment, replay_buffer_size=1000000, num_episodes=100, epsilon=0.1, minibatch_size=32, discount_factor=0.9, network_transfer_freq=1000)
