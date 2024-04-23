@@ -101,6 +101,6 @@ custom_settings = {
 }
 custom_render_settings = {'render_mode': 'gui', 'animation_duration': 1e-8}
 environment = wordle_environment.make(custom_settings, custom_render_settings)
-weights_path = './checkpoints/dqn/_weights'
+weights_path = './checkpoints/dqn/weights'
 
 dqn(environment, replay_buffer_size=1000000, num_episodes=1000, epsilon=0.25, minibatch_size=32, discount_factor=0.9, network_transfer_freq=1000, load_weights_path=None, save_weights_path=weights_path)
