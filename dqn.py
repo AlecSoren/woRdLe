@@ -1,11 +1,12 @@
 import numpy as np
 from tensorflow import keras
-import wordle_environment
+import gymnasium
 
 
 # Convert an array of environment states to an array of inputs compatible with neural networks using one hot encoding
 # Needed because letters and colours shouldn't be represented numerically
 def convert_state_to_input(state):
+    return state.flatten()
     letter_encodings = keras.utils.to_categorical(state[0].flatten(), num_classes=27)
     colour_encodings = keras.utils.to_categorical(state[1].flatten(), num_classes=4)
     state_encodings = np.concatenate([letter_encodings.flatten(), colour_encodings.flatten()])
@@ -20,7 +21,7 @@ def create_dqn_nn(input_size):
         keras.layers.Dense(256, activation='relu'),
         keras.layers.Dense(128, activation='relu'),
         keras.layers.Dense(64, activation='relu'),
-        keras.layers.Dense(26)
+        keras.layers.Dense(2)
     ])
     nn.compile(optimizer='adam', loss=keras.losses.Huber())
     return nn
@@ -46,14 +47,14 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
     network_update_count = 0
 
     for episode_i in range(num_episodes):
-        print('Episode', episode_i + 1, '/', num_episodes)
-        state = env.reset(word='to')[0]
+        state = env.reset()[0]
         terminal = False
         truncated = False
+        total_reward = 0
         while not terminal and not truncated:
             # Epsilon greedy action choice
             if np.random.random() < epsilon:
-                action = np.random.randint(26)
+                action = np.random.randint(0, 1)
             else:
                 action = np.argmax(q1.predict(np.array([convert_state_to_input(state)]), verbose=0))
 
@@ -92,26 +93,21 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
                 q2.set_weights(q1.get_weights())
                 network_update_count = 0
 
+            total_reward += reward
             state = next_state
 
         # Save after each episode
         if save_weights_path:
             q1.save_weights(save_weights_path)
 
+        print('Episode', episode_i + 1, '/', num_episodes, total_reward)
 
-custom_settings = {
-    'word_length': 2,
-    'truncation_limit': 500,
-    'correct_guess_rewards': [1, 1, 1, 1, 1, 1],
-    'final_guess_rewards': [0, 0.25, 0.5],
-    'invalid_word_reward': -1,
-    'valid_word_reward': 0,
-    'backspace_reward': 0,
-    'step_reward': -0.0001,
-}
-custom_render_settings = {'render_mode': 'gui', 'animation_duration': 1e-8}
-environment = wordle_environment.make(custom_settings, custom_render_settings)
+
+
+
+environment = gymnasium.make("CartPole-v0")
 weights_path = 'network.weights.h5'
+environment.reset()
 
-dqn(environment, replay_buffer_size=1000000, num_episodes=1000000, epsilon=0.2, minibatch_size=32, discount_factor=0.9, network_transfer_freq=1000, load_weights_path=None, save_weights_path=weights_path)
+dqn(environment, replay_buffer_size=1000000, num_episodes=1000000, epsilon=0.001, minibatch_size=32, discount_factor=0.9, network_transfer_freq=1000, load_weights_path=None, save_weights_path=weights_path)
 
