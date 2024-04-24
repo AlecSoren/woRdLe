@@ -35,21 +35,23 @@ def evaluate_network(env, nn, time_limit = 600):
 
 
 def train_network(env):
-    try:
-        while True:
+    while True:
+        try:
             dqn(
                 env,
                 replay_buffer_size=1000000,
                 num_episodes=100000000,
-                epsilon=0.04,
+                epsilon=0.25,
                 minibatch_size=32,
-                discount_factor=0.99,
+                discount_factor=0.9,
                 network_transfer_freq=1000,
-                load_weights_path=None,
+                load_weights_path='network.weights.h5',
                 save_weights_path='network.weights.h5'
             )
-    except KeyboardInterrupt:
-        return
+        except KeyboardInterrupt:
+            return
+        except OSError:
+            pass
 
 
 
@@ -66,7 +68,7 @@ env = make(custom_settings = {
     'word_length':2,
     'truncation_limit':24,
     'final_guess_rewards':(0,0.1,0.2),
-    'invalid_word_reward':0
+    'invalid_word_reward':-0.01
 })
 train_network(env)
 
