@@ -14,7 +14,7 @@ def convert_state_to_input(state):
 
 def create_dqn_nn(input_size):
     nn = keras.models.Sequential([
-        keras.Input(input_size),
+        keras.Input((input_size,)),
         keras.layers.Dense(512, activation='relu'),
         keras.layers.Dense(512, activation='relu'),
         keras.layers.Dense(256, activation='relu'),
@@ -104,14 +104,14 @@ custom_settings = {
     'truncation_limit': 500,
     'correct_guess_rewards': [1, 1, 1, 1, 1, 1],
     'final_guess_rewards': [0, 0.25, 0.5],
-    'invalid_word_reward': 0,
+    'invalid_word_reward': -1,
     'valid_word_reward': 0,
     'backspace_reward': 0,
     'step_reward': -0.0001,
 }
 custom_render_settings = {'render_mode': 'gui', 'animation_duration': 1e-8}
 environment = wordle_environment.make(custom_settings, custom_render_settings)
-weights_path = './checkpoints/dqn/weights'
+weights_path = 'network.weights.h5'
 
 dqn(environment, replay_buffer_size=1000000, num_episodes=1000000, epsilon=0.2, minibatch_size=32, discount_factor=0.9, network_transfer_freq=1000, load_weights_path=None, save_weights_path=weights_path)
 
