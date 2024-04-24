@@ -80,7 +80,8 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
 
             # The network's predictions for other actions are needed for training
             minibatch_y_preds = q1.predict(minibatch_states, verbose=0)
-            minibatch_y_preds[:, minibatch_actions] = minibatch_y
+            for m_a_i, m_a in enumerate(minibatch_actions):
+                minibatch_y_preds[m_a_i, m_a] = minibatch_y[m_a_i]
             q1.fit(minibatch_states, minibatch_y_preds, verbose=0)
 
             # Update target weights of model regularly
@@ -97,10 +98,16 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
 custom_settings = {
     'word_length': 2,
     'truncation_limit': 1000,
-    'invalid_word_reward': -0.01
+    'correct_guess_rewards': [1, 1, 1, 1, 1, 1],
+    'final_guess_rewards': [0, 0.25, 0.5],
+    'invalid_word_reward': 0,
+    'valid_word_reward': 0,
+    'backspace_reward': 0,
+    'step_reward': -0.0001,
 }
 custom_render_settings = {'render_mode': 'gui', 'animation_duration': 1e-8}
 environment = wordle_environment.make(custom_settings, custom_render_settings)
 weights_path = './checkpoints/dqn/weights'
 
-dqn(environment, replay_buffer_size=1000000, num_episodes=1000, epsilon=0.25, minibatch_size=32, discount_factor=0.9, network_transfer_freq=1000, load_weights_path=None, save_weights_path=weights_path)
+dqn(environment, replay_buffer_size=1000000, num_episodes=1000000, epsilon=0.25, minibatch_size=32, discount_factor=0.9, network_transfer_freq=1000, load_weights_path=None, save_weights_path=weights_path)
+
