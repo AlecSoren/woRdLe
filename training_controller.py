@@ -7,9 +7,7 @@ from dqn import *
 
 
 
-def evaluate_network(env, nn):
-
-    time_limit = 600
+def evaluate_network(env, nn, time_limit = 600):
 
     episodes = 0
     total_reward = 0
@@ -22,8 +20,7 @@ def evaluate_network(env, nn):
         state = convert_state_to_input(env.reset()[0])
         terminal, truncated = False, False
         while not (terminal or truncated):
-            action = np.argmax(nn.predict(state, verbose=0))
-            #action = 1
+            action = np.argmax(nn.predict(np.array([state]), verbose=0))
             raw_state, reward, terminal, truncated, info = env.step(action)
             state = convert_state_to_input(raw_state)
 
@@ -37,29 +34,41 @@ def evaluate_network(env, nn):
 
 
 
-def train_network(env, nn):
+def train_network(env):
     try:
         while True:
             dqn(
                 env,
-                nn,
                 replay_buffer_size=1000000,
-                num_episodes=1000000,
-                epsilon=0.1,
+                num_episodes=100000000,
+                epsilon=0.04,
                 minibatch_size=32,
-                discount_factor=0.9,
-                network_transfer_freq=1000
+                discount_factor=0.99,
+                network_transfer_freq=1000,
+                load_weights_path=None,
+                save_weights_path='network.weights.h5'
             )
     except KeyboardInterrupt:
-        nn.save('network.keras')
+        return
 
 
 
-def load_model(path = 'network.keras'):
-    return keras.models.load_model(path)
+def load_network(env, weights_path = 'network.weights.h5'):
+    init_state = env.reset()[0]
+    input_init_state = convert_state_to_input(init_state)
+    q1 = create_dqn_nn(input_init_state.size)
+    q1.load_weights(weights_path)
+    return q1
 
 
 
-env = make(custom_settings = {'word_length':2})
-nn = create_dqn_nn(env)
-train_network(env, nn)
+env = make(custom_settings = {
+    'word_length':2,
+    'truncation_limit':24,
+    'final_guess_rewards':(0,0.1,0.2),
+    'invalid_word_reward':0
+})
+train_network(env)
+
+nn = load_network(env)
+print(evaluate_network(env, nn, 60))

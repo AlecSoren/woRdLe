@@ -14,7 +14,7 @@ def convert_state_to_input(state):
 
 def create_dqn_nn(input_size):
     nn = keras.models.Sequential([
-        keras.Input(input_size),
+        keras.Input((input_size,)),
         keras.layers.Dense(256, activation='relu'),
         keras.layers.Dense(256, activation='relu'),
         keras.layers.Dense(128, activation='relu'),
@@ -46,9 +46,9 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
 
     for episode_i in range(num_episodes):
         print('Episode', episode_i + 1, '/', num_episodes)
-        state = env.reset(word='to')[0]
-        terminal = False
-        while not terminal:
+        state = env.reset()[0]
+        terminal, truncated = False, False
+        while not (terminal or truncated):
             # Epsilon greedy action choice
             if np.random.random() < epsilon:
                 action = np.random.randint(26)
@@ -56,7 +56,7 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
                 action = np.argmax(q1.predict(np.array([convert_state_to_input(state)]), verbose=0))
 
             # Take step and add experience to replay buffer
-            next_state, reward, terminal, _, _ = env.step(action)
+            next_state, reward, terminal, truncated, _ = env.step(action)
             replay_buffer_states[replay_buffer_insert_i] = convert_state_to_input(state)
             replay_buffer_actions[replay_buffer_insert_i] = action
             replay_buffer_rewards[replay_buffer_insert_i] = reward
@@ -89,18 +89,22 @@ def dqn(env, replay_buffer_size, num_episodes, epsilon, minibatch_size, discount
                 q2.set_weights(q1.get_weights())
                 network_update_count = 0
 
+            state = next_state
+
         # Save after each episode
         if save_weights_path:
             q1.save_weights(save_weights_path)
 
 
-custom_settings = {
-    'word_length': 2,
-    'truncation_limit': 1000,
-    'invalid_word_reward': -0.01
-}
-custom_render_settings = {'render_mode': 'gui', 'animation_duration': 1e-8}
-environment = wordle_environment.make(custom_settings, custom_render_settings)
-weights_path = './checkpoints/dqn/weights'
 
-dqn(environment, replay_buffer_size=1000000, num_episodes=1000, epsilon=0.25, minibatch_size=32, discount_factor=0.9, network_transfer_freq=1000, load_weights_path=None, save_weights_path=weights_path)
+if __name__ == '__main__':
+    custom_settings = {
+        'word_length': 2,
+        'truncation_limit': 1000,
+        'invalid_word_reward': -0.01
+    }
+    custom_render_settings = {'render_mode': 'command_line', 'animation_duration': 1e-8}
+    environment = wordle_environment.make(custom_settings, custom_render_settings)
+    weights_path = 'network.weights.h5'
+
+    dqn(environment, replay_buffer_size=1000000, num_episodes=1, epsilon=0.25, minibatch_size=32, discount_factor=0.9, network_transfer_freq=1000, load_weights_path=None, save_weights_path=weights_path)
