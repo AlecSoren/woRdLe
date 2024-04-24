@@ -60,7 +60,7 @@ args = parser.parse_args()
 
 #setup environment
 #env = gym.make('CartPole-v0').unwrapped
-env = wordle_environment.make(custom_settings={'word_length':2,'truncation_limit':24,'valid_word_reward':1})
+env = wordle_environment.make(custom_settings={'word_length':2,'truncation_limit':24,'valid_word_reward':100})
 
 #set the cuda visible devices
 os.environ["CUDA_VISIBLE_DEVICES"]= "{}".format(args.device)
