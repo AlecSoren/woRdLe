@@ -770,12 +770,15 @@ class Wordle_GUI_Wrapper:
 
         override_settings(render_settings, custom_render_settings)
 
-        for k in ('scale', 'animation_duration'):
-            value = render_settings[k]
-            if (not isinstance(value, Number)) or value <= 0:
-                raise ValueError(f'{k} must be a positive number')
-
+        if (not isinstance(render_settings['scale'], Number)) or render_settings['scale'] <= 0:
+                raise ValueError('Scale must be a number greater than zero')
         self.scale = render_settings['scale']
+
+        value = render_settings['animation_duration']
+        if (not isinstance(value, Number)) or value < 0:
+            raise ValueError('animation_duration must be a non-negative number')
+
+        
         self.animation_duration = render_settings['animation_duration']
 
         self.success_messages = ('Genius', 'Magnificent', 'Impressive', 'Splendid')[:env.max_guesses]
@@ -831,7 +834,11 @@ class Wordle_GUI_Wrapper:
                     draw_square(
                         screen, None, scale, coords, x_scale = scale_up, y_scale = scale_up, erase = True
                         )
-                    scale_up = max(sin((finish_time - time.time()) / anim_time * 3.14), 0) * 0.12 + 1
+                    if anim_time == 0:
+                        completion = 0
+                    else:
+                        completion = (finish_time - time.time()) / anim_time
+                    scale_up = max(sin(completion * 3.14), 0) * 0.12 + 1
                     draw_square(
                         screen, self.board_font, scale, coords, letter,
                         x_scale = scale_up, y_scale = scale_up
@@ -876,7 +883,10 @@ class Wordle_GUI_Wrapper:
             start_time = time.time()
             finish_time = start_time + anim_time
             while True:
-                completion = min(1, (time.time() - start_time) / anim_time)
+                if anim_time == 0:
+                    completion = 0
+                else:
+                    completion = min(1, (time.time() - start_time) / anim_time)
                 radians = completion * 3.14
                 offset = sin(radians * shakes) * sin(radians) * max_offset
 
@@ -917,7 +927,10 @@ class Wordle_GUI_Wrapper:
                 while True:
                     draw_square(screen, None, scale, coords,
                                 x_scale = 1.1, y_scale = y_scale * 1.1, erase = True)
-                    completion = max((finish_time - time.time()) / anim_time, 0)
+                    if anim_time == 0:
+                        completion = 0
+                    else:
+                        completion = max((finish_time - time.time()) / anim_time, 0)
                     if completion > 0.5:
                         colour_code = 3
                     else:
@@ -971,7 +984,7 @@ class Wordle_GUI_Wrapper:
             draw_message(screen, scale, self.message_font)
 
         #Move letters up and down to celebrate if the player gets the right answer
-        if correct_answer:
+        if correct_answer and self.animation_duration != 0:
 
             row_coords = self.board_coords[guess_num]
             letters = [env.alphabet[l] for l in state[0, guess_num]]
