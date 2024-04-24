@@ -69,6 +69,9 @@ env = make(custom_settings = {
     'truncation_limit':24,
     'final_guess_rewards':(0,0.1,0.2),
     'invalid_word_reward':-0.01
+}, custom_render_settings={
+    'render_mode':'gui',
+    'animation_duration':0
 })
 train_network(env)
 
