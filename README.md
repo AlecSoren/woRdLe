@@ -1,7 +1,7 @@
 # woRdLe
 Solving Wordle with reinforcement learning. For University of Bath unit CM50270
 
-Requires NumPy and pygame
+Requires NumPy, pygame and Gymnasium
 
 ## Getting started:
 
@@ -40,13 +40,21 @@ where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
 - 'backspace_reward' - Reward given when backspace is inputted. 0 by default.
 - 'step_reward' - Reward applied at every step in addition to state-specific rewards. 0 by default.
 - 'truncation_limit' - If specified, will truncate each episode after this many steps.
+- 'state_representation' - Customise the encoding of the observation space
+    - 'one_hot' (default) - Letters and colours are treated as categories and converted to bool matrices
+    using one-hot encoding, then the array is flattened
+    - 'one_hot_small' - Similar to one_hot, but instead of treating empty letters/colours as separate
+    categories, all the bools for that letter/colour slot are set to False
+    - 'int' - The board is represented as a 3D array where the first dimension is (0: letters, 1: colours),
+    letters are represented as their alphabet index (or one higher than the max index for an empty letter), and
+    colours are (0 = grey, 1 = yellow, 2 = green, 3 = empty)
 
 Also optionally accepts a custom_render_settings dictionary with any of the following fields:
 - 'render_mode' - Either 'command_line' or 'gui'.
 - 'scale' - Factor by which to scale the window. Default is 2/3
 - 'animation_duration' - Factor by which animation times are multiplied. 1 is normal speed, 0 is instant.
 
-## Environment object methods
+## Environment methods
 
 ### reset()
 
@@ -59,7 +67,7 @@ Returns:
 - observation (NDArray[uint8]) - Observation of the current state. See the step() method for details.
 - info (dict) - Contains other information unknown to the agent. See the step() method for details.
 
-## step(action)
+### step(action)
 
 Take an action.
 
@@ -86,7 +94,7 @@ Returns:
     - 'invalid_word' (bool) - True if the last action resulted in attempting to enter a word which is not on the vocab list.
     - 'incomplete_word' (bool) - True if the last action resulted in attempting to enter a row with one or more empty spaces remaining.
 
-## render()
+### render()
 
 Displays the current state in a human-comprehensible format.
 
@@ -94,10 +102,32 @@ Parameters: None
 
 Returns: None
 
-## play()
+### play()
 
 Plays one episode, controlled by the user.
 
 Parameters
 - hidden_word (str) - If specified, it will be set as the hidden/answer word for this episode. Note that since play() automatically resets the environment, this is the only way to set the hidden word.
 - keybindings (dict) - If GUI is enabled, this allows for keybindings to be customised.
+
+### close()
+
+See https://gymnasium.farama.org/api/env/#gymnasium.Env.close
+
+## Environment attributes
+
+### action_space
+
+See https://gymnasium.farama.org/api/env/#gymnasium.Env.action_space
+
+### observation_space
+
+See https://gymnasium.farama.org/api/env/#gymnasium.Env.observation_space
+
+### metadata
+
+metadata['render_modes'] contains a list of all possible render modes
+
+### unwrapped
+
+If GUI rendering is used, make() will return a GUI wrapper. This property returns the unwrapped environment.
