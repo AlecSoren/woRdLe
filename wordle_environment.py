@@ -126,8 +126,10 @@ class Wordle_Environment(gymnasium.Env):
 
             'max_guesses' : 6,
 
-            'correct_guess_rewards' : (7, 6, 5, 4, 3, 2), #Index = how many wrong guesses before the correct one
-            'final_guess_rewards' : (-0.02, 0.1, 0.2), #(grey, yellow, green)
+            'correct_guess_reward' : 2,
+            'early_guess_reward' : 1,
+            'colour_rewards' : (-0.02, 0.1, 0.2), #(grey, yellow, green)
+            'reward_last_attempt_only' : True,
             'invalid_word_reward' : -1,
             'valid_word_reward' : 0,
             'backspace_reward' : 0,
@@ -224,17 +226,33 @@ class Wordle_Environment(gymnasium.Env):
 
         self.max_guesses = settings['max_guesses']
 
-        for key in ('correct_guess_rewards', 'final_guess_rewards'):
+        for key in ('colour_rewards',):
             value = settings[key]
             if not (isinstance(value, Iterable) and all(isinstance(e, Number) for e in value)):
                 raise ValueError(f'{key} must be an iterable containing numbers')
             
-        for key in ('invalid_word_reward', 'valid_word_reward', 'backspace_reward', 'step_reward'):
+        for key in (
+            'invalid_word_reward',
+            'valid_word_reward',
+            'backspace_reward',
+            'step_reward',
+            'correct_guess_reward',
+            'early_guess_reward'
+        ):
             if not isinstance(settings[key], Number):
                 raise ValueError(f'{key} must be a number')
+            
+        if not isinstance(settings['reward_last_attempt_only'], bool):
+            raise TypeError('reward_last_attempt_only must be True or False')
         
-        self.correct_guess_rewards = settings['correct_guess_rewards']
-        self.grey_reward, self.yellow_reward, self.green_reward = settings['final_guess_rewards']
+        correct_guess_rewards = []
+        for i in range(self.max_guesses - 1, -1, -1):
+            correct_guess_rewards.append(settings['correct_guess_reward'] + settings['early_guess_reward'] * i)
+        self.correct_guess_rewards = tuple(correct_guess_rewards)
+
+        self.grey_reward, self.yellow_reward, self.green_reward = settings['colour_rewards']
+        self.reward_last_attempt_only = settings['reward_last_attempt_only']
+
         self.invalid_word_reward = settings['invalid_word_reward']
         self.valid_word_reward = settings['valid_word_reward']
         self.backspace_reward = settings['backspace_reward']
@@ -287,29 +305,19 @@ class Wordle_Environment(gymnasium.Env):
 
 
     def reset(self, word = None, seed = None):
-        """
-Begin a new episode.
-
-Parameters:
-- word (str) - If specified, it will be set as the hidden/answer word for this episode.
-
-Returns:
-- observation (NDArray[uint8]) - Observation of the current state. Array has shape (2, max_guesses, word_length).
-    - First dimension: 0 = letters (values correspond to alphabet indices), 1 = colours (0 for grey, 1 for
-    yellow, 2 for green). Blank letter cells are one higher than the highest letter index.
-    Empty colour cells have a value of 3.
-- info (dict) - Contains other information unknown to the agent. Has the following fields:
-    - 'hidden_word' (int) - The hidden/answer word for this episode, encoded with each group of 5 bits
-    representing a letter.
-    - 'step' (int) - The number of steps completed so far. Always 0.
-        """
 
         super().reset(seed=seed)
 
         self.info = {
             'step': 0,
+
+            'total_reward':0,
+
+            'correct_guess':False,
             'invalid_word': False,
-            'incomplete_word': False
+            'incomplete_word': False,
+            'invalid_words_entered':0,
+            'incomplete_words_entered':0
         }
 
         if word == None:
@@ -331,7 +339,8 @@ Returns:
             self.info['hidden_word'] = word
             self.hidden_word_tuple = hidden_word_tuple
             self.hidden_word_bits = hidden_word_bits
-            self.hidden_word_as_set, self.hidden_word_counts = get_letter_counts(hidden_word_tuple)
+            self.hidden_word_set, self.hidden_word_counts = get_letter_counts(hidden_word_tuple)
+            print(self.hidden_word_counts)
 
         self.state = np.copy(self.starting_state)
 
@@ -340,13 +349,14 @@ Returns:
         #self.current_row_code = 0
         #self.current_row = np.copy(self.starting_row)
 
-        return (self.state, self.info)
+        return (self.__encode_state(), self.info)
     
 
     def step(self, action):
         self.info['step'] += 1
         self.info['invalid_word'] = False
         self.info['incomplete_word'] = False
+        self.info['correct_guess'] = False
 
         reward = 0
         terminal = False
@@ -386,6 +396,7 @@ Returns:
                     terminal = True
                     reward += self.correct_guess_rewards[self.guess_num] + self.valid_word_reward
                     self.state[1, self.guess_num] = 2
+                    self.info['correct_guess'] = True
 
                 elif tuple(self.state[0, self.guess_num]) in self.vocab_tuples:
                     current_row_counts = {letter: 0 for letter in self.state[0, self.guess_num]}
@@ -416,11 +427,14 @@ Returns:
                     else:
                         self.guess_num += 1
                         self.position = 0
+                        if not self.reward_last_attempt_only:
+                            reward += row_reward
                     reward += self.valid_word_reward
 
                 else:
                     reward += self.invalid_word_reward
                     self.info['invalid_word'] = True
+                    self.info['invalid_words_entered'] += 1
                     if self.action_mode > 2:
                         self.state[0, self.guess_num] = self.blank_letter_number
 
@@ -428,6 +442,9 @@ Returns:
             else:
                 reward += self.invalid_word_reward
                 self.info['incomplete_word'] = True
+                self.info['incomplete_words_entered'] += 1
+
+        self.info['total_reward'] += reward
 
         return self.__encode_state(), reward, terminal, truncated, self.info
 
@@ -467,7 +484,7 @@ Returns:
 
             rewards = []
             for a in actions:
-                ___, reward, terminal, truncated, __ = self.step(a)
+                state, reward, terminal, truncated, info = self.step(a)
                 rewards.append(str(reward))
                 if terminal or truncated:
                     break
@@ -1061,10 +1078,12 @@ Make sure to use the same seed each time, or it will choose a new random subset 
 
 - 'max_guesses' - The number of rows on the Wordle board. 6 by default.
 
-- 'correct_guess_rewards' - Iterable containing rewards for a correct guess after i incorrect guesses,
-where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
-- 'final_guess_rewards' - Iterable containing rewards for grey, yellow and green letters in the final guess.
+- 'correct_guess_reward' - Base reward given for winning the game by guessing the hidden word. 2 by default.
+- 'early_guess_reward' - Bonus reward given for each remaining unused guess when the game is won. 1 by default.
+- 'colour_rewards' - Iterable containing rewards for grey, yellow and green letters in an incorrect guess.
 (-0.02, 0.1, 0.2) by default.
+- 'reward_last_attempt_only' - True if colour rewards should only be applied to the final guess, otherwise
+False. True by default.
 - 'invalid_word_reward' - Reward given when an invalid word is entered. -1 by default.
 - 'valid_word_reward' - Reward given when a valid word is entered. 0 by default.
 - 'backspace_reward' - Reward given when backspace is inputted. 0 by default.

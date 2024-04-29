@@ -31,10 +31,11 @@ Make sure to use the same seed each time, or it will choose a new random subset 
     - 4 = Inputs one row at a time. Each action must be an iterable.
     - 5 = Chooses word from vocab list.
 - 'max_guesses' - The number of rows on the Wordle board. 6 by default.
-- 'correct_guess_rewards' - Iterable containing rewards for a correct guess after i incorrect guesses,
-where i is the index of the iterable. (7, 6, 5, 4, 3, 2) by default.
-- 'final_guess_rewards' - Iterable containing rewards for grey, yellow and green letters in the final guess.
+- 'correct_guess_reward' - Base reward given for winning the game by guessing the hidden word. 2 by default.
+- 'early_guess_reward' - Bonus reward given for each remaining unused guess when the game is won. 1 by default.
+- 'colour_rewards' - Iterable containing rewards for grey, yellow and green letters in an incorrect guess.
 (-0.02, 0.1, 0.2) by default.
+- 'reward_last_attempt_only' - True if colour rewards should only be applied to the final guess, otherwise False. True by default.
 - 'invalid_word_reward' - Reward given when an invalid word is entered. -1 by default.
 - 'valid_word_reward' - Reward given when a valid word is entered. 0 by default.
 - 'backspace_reward' - Reward given when backspace is inputted. 0 by default.
@@ -62,6 +63,7 @@ Begin a new episode.
 
 Parameters:
 - word (str) - If specified, it will be set as the hidden/answer word for this episode.
+- seed (any) - If specified, set the environment's internal random seed. Ensures consistent behaviour each time. Only needs to be done once.
 
 Returns:
 - observation (NDArray[uint8]) - Observation of the current state. See the step() method for details.
@@ -80,19 +82,20 @@ Parameters:
     - Action mode 5 - Index of a word in the vocab list. By default, 0 is aahed, 1 is aalii and so on.
 
 Returns:
-- observation (NDArray[uint8]) - Observation of the current state. Array has shape (2, max_guesses, word_length).
-    - First dimension: 0 = letters (values correspond to alphabet indices), 1 = colours (0 for grey, 1 for
-    yellow, 2 for green). Blank letter cells have a value one higher than the highest letter index.
-    Empty colour cells have a value of 3.
+- observation (NDArray[uint8]) - Observation of the current state. Details depend on the state_representation setting.
 - reward (float) - The reward earned by transitioning to the new state.
 - terminal (bool) - True if the new state is a terminal state, i.e. the game is over.
 - truncated (bool) - True if the episode has reached the maximum number of steps.
 - info (dict) - Contains other information unknown to the agent. Has the following fields:
     - 'hidden_word' (int) - The hidden/answer word for this episode, encoded with each group of 5 bits
     representing a letter.
-    - 'step' (int) - The number of steps completed so far. Always 0.
+    - 'step' (int) - The number of steps completed so far.
+    - 'total_reward' (int) - The sum of all rewards earned so far in this episode.
+    - 'correct_guess' (bool) - True if the player has won the game by guessing the hidden word.
     - 'invalid_word' (bool) - True if the last action resulted in attempting to enter a word which is not on the vocab list.
     - 'incomplete_word' (bool) - True if the last action resulted in attempting to enter a row with one or more empty spaces remaining.
+    - 'invalid_words_entered' (int) - Total number of invalid words entered so far in this episode.
+    - 'incomplete_words_entered' (int) - Total number of incomplete words entered so far in this episode.
 
 ### render()
 
