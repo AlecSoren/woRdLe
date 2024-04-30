@@ -271,7 +271,7 @@ class Wordle_Environment(gymnasium.Env):
             case 3:
                 self.action_space = gymnasium.spaces.Discrete(len(alphabet))
             case 4:
-                self.action_space = gymnasium.spaces.Box(0, len(alphabet) - 1, (word_length,), 'uint8')
+                self.action_space = gymnasium.spaces.MultiDiscrete([len(alphabet)] * word_length, 'uint8')
             case 5:
                 self.action_space = gymnasium.spaces.Discrete(len(self.vocab_list))
 
@@ -294,12 +294,14 @@ class Wordle_Environment(gymnasium.Env):
                 extra_options = 5
             elif self.state_representation == 1:
                 extra_options = 3
+            state_len = self.max_guesses * word_length * (len(alphabet) + extra_options)
             self.observation_space = gymnasium.spaces.Box(
                 0,
                 1,
                 (self.max_guesses * word_length * (len(alphabet) + extra_options),),
                 'uint8'
                 )
+            self.observation_space = gymnasium.spaces.MultiBinary(state_len)
 
         self.metadata['render_modes'] = ['command_line', 'gui']
 
