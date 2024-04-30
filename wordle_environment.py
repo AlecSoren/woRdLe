@@ -649,7 +649,8 @@ class Wordle_GUI_Wrapper(gymnasium.Wrapper):
         old_state = np.copy(env.state)
         guess_num, position = env.guess_num, env.position
 
-        _, reward, terminal, truncated, info = env.step(action)
+        result = env.step(action)
+        _, reward, terminal, truncated, info = result
         state = env.state
 
         #Action is a single letter
@@ -887,7 +888,7 @@ class Wordle_GUI_Wrapper(gymnasium.Wrapper):
         if clear_keypress_buffer:
             self.keypress_buffer = []
 
-        return state, reward, terminal, truncated, info
+        return result
 
 
     def render(self):
