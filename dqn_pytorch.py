@@ -146,13 +146,13 @@ custom_settings = {
     'truncation_limit':100,
     'max_hidden_word_options':2,
     'reward_last_attempt_only':False,
-    #'early_guess_reward':0,
-    #'correct_guess_reward':1,
-    #'invalid_word_reward':0,
-    #'colour_rewards':(0,0,0)
+    'early_guess_reward':0.1,
+    'correct_guess_reward':1,
+    'invalid_word_reward':0,
+    'colour_rewards':(0,0.01,0.02)
 
 }
-env = wordle_environment.make(custom_settings=custom_settings)
+env = wordle_environment.make(custom_settings=custom_settings,custom_render_settings={'render_mode':'gui'})
 agent = DQN_Agent(env, 0.9, 0.9, 0.0001, 128)
 state, info = env.reset()
 total_reward = 0
