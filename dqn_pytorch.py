@@ -59,7 +59,7 @@ class DQN_Agent:
         
         input_size = gymnasium.spaces.utils.flatten_space(env.observation_space).shape[0]
         output_size = gymnasium.spaces.utils.flatten_space(env.action_space).shape[0]
-        self.Q_eval = DQN(input_size, output_size, (124, 124, 124), learning_rate)
+        self.Q_eval = DQN(input_size, output_size, (372, 372, 372), learning_rate)
 
         self.action_space = env.action_space
         try:
@@ -138,22 +138,35 @@ class DQN_Agent:
         
 
 
-env = gymnasium.make("CartPole-v1")#, render_mode="human")
-#env = wordle_environment.make(custom_settings={'action_mode':3,'word_length':2,'max_guesses':3,'truncation_limit':10})
-agent = DQN_Agent(env, 0.99, 0.9, 0.001, 128)
+#env = gymnasium.make("CartPole-v1")#, render_mode="human")
+custom_settings = {
+    'action_mode':3,
+    'word_length':2,
+    'max_guesses':6,
+    'truncation_limit':100,
+    'max_hidden_word_options':2,
+    'reward_last_attempt_only':False,
+    #'early_guess_reward':0,
+    #'correct_guess_reward':1,
+    #'invalid_word_reward':0,
+    #'colour_rewards':(0,0,0)
+
+}
+env = wordle_environment.make(custom_settings=custom_settings)
+agent = DQN_Agent(env, 0.9, 0.9, 0.0001, 128)
 state, info = env.reset()
 total_reward = 0
 for i in range(50000):
     action = agent.choose_action(state)
     new_state, reward, terminal, truncated, info = env.step(action)
-    env.render()
     total_reward += reward
     agent.store_transition(state, action, new_state, reward, terminal)
     state = new_state
     agent.learn_from_minibatch()
     if terminal or truncated:
-        state, info = env.reset()
+        #env.render()
         print(agent.epsilon, total_reward)
+        state, info = env.reset()
         total_reward = 0
 
 
