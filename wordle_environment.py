@@ -273,7 +273,7 @@ class Wordle_Environment(gymnasium.Env):
             case 4:
                 self.action_space = gymnasium.spaces.MultiDiscrete([len(alphabet)] * word_length, 'uint8')
             case 5:
-                self.action_space = gymnasium.spaces.Discrete(len(self.vocab_list))
+                self.action_space = gymnasium.spaces.Discrete(len(self.vocab_tuples))
 
         state_representation_options = ('one_hot','one_hot_small','int')
         if settings['state_representation'] not in state_representation_options:
@@ -660,7 +660,7 @@ class Wordle_GUI_Wrapper(gymnasium.Wrapper):
             added_letters = (env.alphabet[l] for l in action)
         #Action is the index of a word in the vocab list
         elif self.env.action_mode == 5:
-            added_letters = bits_to_word(env.vocab_list[action], env.alphabet)
+            added_letters = (env.alphabet[l] for l in env.vocab_tuples[action])
         #Action is backspace or enter
         else:
             added_letters = None
