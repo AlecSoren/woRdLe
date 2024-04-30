@@ -150,9 +150,13 @@ custom_settings = {
     'correct_guess_reward':1,
     'invalid_word_reward':0,
     'colour_rewards':(0,0.01,0.02)
-
 }
-env = wordle_environment.make(custom_settings=custom_settings,custom_render_settings={'render_mode':'gui'})
+custom_render_settings = {
+    'render_mode':'gui',
+    'animation_duration':0
+}
+#env = wordle_environment.make(custom_settings=custom_settings,custom_render_settings=custom_render_settings)
+env = wordle_environment.make(custom_settings=custom_settings)
 agent = DQN_Agent(env, 0.9, 0.9, 0.0001, 128)
 state, info = env.reset()
 total_reward = 0
@@ -164,7 +168,7 @@ for i in range(50000):
     state = new_state
     agent.learn_from_minibatch()
     if terminal or truncated:
-        #env.render()
+        env.render()
         print(agent.epsilon, total_reward)
         state, info = env.reset()
         total_reward = 0
