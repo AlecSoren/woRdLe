@@ -439,6 +439,7 @@ class Wordle_Environment(gymnasium.Env):
                     self.info['invalid_words_entered'] += 1
                     if self.action_mode > 2:
                         self.state[0, self.guess_num] = self.blank_letter_number
+                        self.position = 0
 
             #Word is incomplete
             else:
