@@ -40,6 +40,7 @@ Make sure to use the same seed each time, or it will choose a new random subset 
 - 'valid_word_reward' - Reward given when a valid word is entered. 0 by default.
 - 'backspace_reward' - Reward given when backspace is inputted. 0 by default.
 - 'step_reward' - Reward applied at every step in addition to state-specific rewards. 0 by default.
+- 'repeated_guess_reward' - Reward given when the player re-enters a valid word they have already entered this episode. -1 by default.
 - 'truncation_limit' - If specified, will truncate each episode after this many steps.
 - 'state_representation' - Customise the encoding of the observation space
     - 'one_hot' (default) - Letters and colours are treated as categories and converted to bool matrices
