@@ -380,7 +380,7 @@ class Wordle_Environment(gymnasium.Env):
                 if self.position != self.word_length:
                     self.state[0, self.guess_num, self.position] = action
                     self.position += 1
-                    if self.position == self.word_length:
+                    if self.position == self.word_length and self.action_mode != 1:
                         enter_word = True
 
         elif self.action_mode == 4:
@@ -753,8 +753,7 @@ class Wordle_GUI_Wrapper(gymnasium.Wrapper):
             clear_keypress_buffer = True
 
             if guess_num + 1 == env.max_guesses and not correct_answer:
-                draw_message(screen, scale, self.message_font,
-                             bits_to_word(env.hidden_word_code, env.alphabet).upper())
+                draw_message(screen, scale, self.message_font, info['hidden_word'].upper())
                 
             changed_key_colours = []
 
