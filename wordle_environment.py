@@ -134,6 +134,7 @@ class Wordle_Environment(gymnasium.Env):
             'valid_word_reward' : 0,
             'backspace_reward' : 0,
             'step_reward' : 0, #Reward applied at every step in addition to state-specific rewards
+            'repeated_guess_reward' : -1, #Reward for re-entering a guess which has already been evaluated
 
             'truncation_limit' : None,
 
@@ -237,7 +238,8 @@ class Wordle_Environment(gymnasium.Env):
             'backspace_reward',
             'step_reward',
             'correct_guess_reward',
-            'early_guess_reward'
+            'early_guess_reward',
+            'repeated_guess_reward'
         ):
             if not isinstance(settings[key], Number):
                 raise ValueError(f'{key} must be a number')
@@ -257,6 +259,7 @@ class Wordle_Environment(gymnasium.Env):
         self.valid_word_reward = settings['valid_word_reward']
         self.backspace_reward = settings['backspace_reward']
         self.step_reward = settings['step_reward']
+        self.repeated_guess_reward = settings['repeated_guess_reward']
             
         if len(self.correct_guess_rewards) != self.max_guesses:
             raise ValueError('length of correct_guess_rewards does not match max_guesses')
@@ -360,7 +363,7 @@ class Wordle_Environment(gymnasium.Env):
         self.info['incomplete_word'] = False
         self.info['correct_guess'] = False
 
-        reward = 0
+        reward = self.step_reward
         terminal = False
         truncated = self.info['step'] == self.truncation_limit
 
@@ -401,6 +404,9 @@ class Wordle_Environment(gymnasium.Env):
                     self.info['correct_guess'] = True
 
                 elif tuple(self.state[0, self.guess_num]) in self.vocab_tuples:
+                    if self.state[0, self.guess_num].tolist() in self.state[0, :self.guess_num].tolist():
+                        reward += self.repeated_guess_reward
+
                     current_row_counts = {letter: 0 for letter in self.state[0, self.guess_num]}
                     row_reward = 0
                     for i, letter in enumerate(self.state[0, self.guess_num]):
@@ -1091,6 +1097,8 @@ False. True by default.
 - 'valid_word_reward' - Reward given when a valid word is entered. 0 by default.
 - 'backspace_reward' - Reward given when backspace is inputted. 0 by default.
 - 'step_reward' - Reward applied at every step in addition to state-specific rewards. 0 by default.
+- 'repeated_guess_reward' - Reward given when the player re-enters a valid word they have already
+entered this episode. -1 by default.
 
 - 'truncation_limit' - If specified, will truncate each episode after this many steps.
 
