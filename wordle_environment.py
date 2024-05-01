@@ -360,7 +360,7 @@ class Wordle_Environment(gymnasium.Env):
         self.info['incomplete_word'] = False
         self.info['correct_guess'] = False
 
-        reward = 0
+        reward = self.step_reward
         terminal = False
         truncated = self.info['step'] == self.truncation_limit
 
