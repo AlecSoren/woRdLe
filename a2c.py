@@ -89,7 +89,7 @@ def a2c(
         num_episodes,
         save_weight_filepaths=None,
         load_weight_filepaths=None,
-        explore_reward_scalar=1,
+        explore_reward_scalar=1.0,
         feature_size=64,
         discount_factor=0.9,
         learning_rate=1e-4,
@@ -132,19 +132,19 @@ def a2c(
             action = action_dist.sample()
             next_state, reward, terminal, truncated, _ = env.step(action.cpu().numpy())
 
-            values.append(value)
-            rewards.append(reward)
-            log_probs.append(action_dist.log_prob(action))
-
             # Add exploration reward for seeing unfamiliar states
             next_state_input = T.FloatTensor(next_state).to(DEVICE)
             explore_reward = explore_reward_scalar * feature_target_predictor.update(next_state_input)
             reward += explore_reward
             total_explore_rewards += explore_reward
 
+            values.append(value)
+            rewards.append(reward)
+            log_probs.append(action_dist.log_prob(action))
+
             state = next_state
 
-        print('Episode: {:8}  |  Total Reward: {:16.8f}  |  Avg Explore Reward: {:16.8f}'.format(episode_i + 1, sum(rewards), total_explore_rewards / len(rewards)))
+        print('Episode: {:8}  |  Total Reward: {:16.8f}  |  Total Explore Reward: {:16.8f}'.format(episode_i + 1, sum(rewards), total_explore_rewards))
 
         # Calculate returns for episode (working backwards)
         next_value = 0
@@ -179,22 +179,21 @@ if __name__ == '__main__':
     custom_settings = {
         'word_length': 3,
         'truncation_limit': 1000,
-        'correct_guess_reward': 10,
+        'correct_guess_reward': 2,
         'early_guess_reward': 0.2,
         'colour_rewards': (0, 0.05, 0.1),
-        'invalid_word_reward': -0.001,
+        'valid_word_reward': 0,
+        'invalid_word_reward': 0,
         'step_reward': -0.0001,
         'repeated_guess_reward': 0,
-        'alphabet': 'abcdefgh',
-        'vocab_file': 'word_lists/three_letter_abcdefgh.txt',
-        'hidden_words_file': 'word_lists/three_letter_abcdefgh.txt',
-        'max_hidden_word_options': 1,
-        'hidden_word_subset_seed': 1,
+        'alphabet': 'abcd',
+        'vocab_file': 'word_lists/three_letter_abcd_all.txt',
+        'hidden_words_file': 'word_lists/three_letter_abcd_all.txt',
     }
     custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0}
     environment = wordle_environment.make(custom_settings, custom_render_settings)
-    weight_filepaths = ('actor_w.pt', 'critic_w.pt',
-                        'f_target_w.pt', 'f_prediction_w.pt')
+    weight_filepaths = ('actor_w_a4.pt', 'critic_w_a4.pt',
+                        'f_target_w_a4.pt', 'f_prediction_w_a4.pt')
 
     a2c(
         environment,
@@ -202,8 +201,8 @@ if __name__ == '__main__':
         save_weight_filepaths=weight_filepaths,
         load_weight_filepaths=None,
         explore_reward_scalar=1,
-        feature_size=64,
+        feature_size=128,
         discount_factor=0.9,
-        learning_rate=1e-4,
+        learning_rate=5e-4,
         hidden_layers=(512, 256, 128)
     )
