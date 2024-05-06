@@ -4,31 +4,33 @@ import torch.optim as optim
 from torch.distributions import Categorical
 
 import numpy as np
+import os
 
 import wordle_environment
 
 DEVICE = T.device('cpu')
 
 
-# Generates a NN with specified layers, with ReLU activation in between and optional softmax output
-class NN(nn.Module):
+# Generates a CNN with specified layers, with ReLU activation in between and optional softmax output
+# Contains 1 convolutional layer with pointwise filters to extract features from each grid cell
+class CNN(nn.Module):
 
-    def __init__(self, input_size, output_size, hidden_layers, learning_rate, softmax=False):
-        super(NN, self).__init__()
-
-        layer_sizes = [input_size, *hidden_layers, output_size]
-        layers = [nn.Linear(s, layer_sizes[i + 1]) for i, s in enumerate(layer_sizes[:-1])]
-        stack = [None] * (len(layers) * 2 - 1)
-        stack[::2] = layers
-        stack[1::2] = [nn.ReLU() for _ in range(len(layers) - 1)]
+    def __init__(self, input_shape, output_size, conv_filters, hidden_layers, learning_rate, softmax=False):
+        super(CNN, self).__init__()
+        layers = [nn.Conv2d(input_shape[2], conv_filters, 1), nn.Flatten(0, -1)]
+        layer_sizes = [input_shape[0] * input_shape[1] * conv_filters, *hidden_layers, output_size]
+        for i, s in enumerate(layer_sizes[:-1]):
+            layers.append(nn.ReLU())
+            layers.append(nn.Linear(s, layer_sizes[i + 1]))
         if softmax:
-            stack.append(nn.Softmax())
-        self.linear_relu_stack = nn.Sequential(*stack)
+            layers.append(nn.Softmax())
+        self.sequential = nn.Sequential(*layers)
         self.optimiser = optim.Adam(self.parameters(), lr=learning_rate)
         self.to(DEVICE)
 
     def forward(self, nn_input):
-        return self.linear_relu_stack(nn_input)
+        nn_input = nn_input.permute(2, 0, 1)
+        return self.sequential(nn_input)
 
     def save_weights(self, file_path):
         T.save(self.state_dict(), file_path)
@@ -38,17 +40,17 @@ class NN(nn.Module):
 
 
 # Actor network to generate probability distribution of actions given a state
-class Actor(NN):
+class Actor(CNN):
 
     def __init__(self, input_size, output_size, hidden_layers, learning_rate):
-        super().__init__(input_size, output_size, hidden_layers, learning_rate, softmax=True)
+        super().__init__(input_size, output_size, 64, hidden_layers, learning_rate, softmax=True)
 
 
 # Critic network to valuate states
-class Critic(NN):
+class Critic(CNN):
 
     def __init__(self, input_size, hidden_layers, learning_rate):
-        super().__init__(input_size, 1, hidden_layers, learning_rate)
+        super().__init__(input_size, 1, 64, hidden_layers, learning_rate)
 
 
 # RND-based computational curiosity
@@ -57,9 +59,9 @@ class Critic(NN):
 # The predictor will produce lower errors from states similar to those it has previously seen
 class FeatureTargetPredictor:
 
-    def __init__(self, input_size, output_size, hidden_layers, learning_rate):
-        self.feature_target = NN(input_size, output_size, hidden_layers, learning_rate)
-        self.feature_predictor = NN(input_size, output_size, hidden_layers, learning_rate)
+    def __init__(self, input_size, output_size, conv_filters, hidden_layers, learning_rate):
+        self.feature_target = CNN(input_size, output_size, conv_filters, hidden_layers, learning_rate)
+        self.feature_predictor = CNN(input_size, output_size, conv_filters, hidden_layers, learning_rate)
 
     # Compare predictions of target and predictor networks and return prediction error
     # Perform backpropagation on given sample
@@ -87,38 +89,60 @@ class FeatureTargetPredictor:
 def a2c(
         env,
         num_episodes,
-        save_weight_filepaths=None,
-        load_weight_filepaths=None,
+        save_weight_dir=None,
+        load_weight_dir=None,
         explore_reward_scalar=1.0,
         feature_size=64,
         discount_factor=0.9,
         learning_rate=1e-4,
-        hidden_layers=(512, 256, 128)
+        hidden_layers=(512, 256, 128),
+        conv_layers=64,
+        entropy_scalar=0.01,
 ):
-    input_size = env.observation_space.shape[0]
+    input_shape = env.observation_space.shape
     output_size = env.action_space.n
 
-    actor = Actor(input_size, output_size, hidden_layers, learning_rate)
-    critic = Critic(input_size, hidden_layers, learning_rate)
+    actor = Actor(input_shape, output_size, hidden_layers, learning_rate)
+    critic = Critic(input_shape, hidden_layers, learning_rate)
 
-    feature_target_predictor = FeatureTargetPredictor(input_size, feature_size, (128, 128, 128), learning_rate)
+    feature_target_predictor = FeatureTargetPredictor(input_shape, feature_size, conv_layers, (128, 128, 128), learning_rate)
 
-    if load_weight_filepaths:
-        actor.load_weights(save_weight_filepaths[0])
-        critic.load_weights(save_weight_filepaths[1])
-        feature_target_predictor.load_weights(save_weight_filepaths[2], save_weight_filepaths[3])
+    episode_rewards = []
+    episode_explore_rewards = []
+    if load_weight_dir:
+        actor.load_weights(f'{load_weight_dir}/actor_weights.pt')
+        critic.load_weights(f'{load_weight_dir}/critic_weights.pt')
+        feature_target_predictor.load_weights(f'{load_weight_dir}/feature_target_weights.pt',
+                                              f'{load_weight_dir}/feature_predictor_weights.pt')
+        episode_rewards = np.load(f'{load_weight_dir}/episode_rewards.npy').tolist()
+        episode_explore_rewards = np.load(f'{load_weight_dir}/episode_explore_rewards.npy').tolist()
 
-    for episode_i in range(num_episodes):
-        if episode_i % 50 == 0 and save_weight_filepaths:
-            actor.save_weights(save_weight_filepaths[0])
-            critic.save_weights(save_weight_filepaths[1])
-            feature_target_predictor.save_weights(save_weight_filepaths[2], save_weight_filepaths[3])
+    while len(episode_rewards) < num_episodes:
+        episode_i = len(episode_rewards) + 1
+        if save_weight_dir:
+            if episode_i % 25 == 0:
+                actor.save_weights(f'{save_weight_dir}/actor_weights.pt')
+                critic.save_weights(f'{save_weight_dir}/critic_weights.pt')
+                feature_target_predictor.save_weights(f'{save_weight_dir}/feature_target_weights.pt',
+                                                      f'{save_weight_dir}/feature_predictor_weights.pt')
+                np.save(f'{save_weight_dir}/episode_rewards.npy', np.array(episode_rewards))
+                np.save(f'{save_weight_dir}/episode_explore_rewards.npy', np.array(episode_explore_rewards))
+
+            if episode_i in [25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000]:
+                episode_dir = f'{save_weight_dir}/{episode_i}'
+                if not os.path.exists(episode_dir):
+                    os.mkdir(episode_dir)
+                actor.save_weights(f'{episode_dir}/actor_weights.pt')
+                critic.save_weights(f'{episode_dir}/critic_weights.pt')
+                feature_target_predictor.save_weights(f'{episode_dir}/feature_target_weights.pt',
+                                                      f'{episode_dir}/feature_predictor_weights.pt')
 
         state, _ = env.reset()
         values = []
         rewards = []
         total_explore_rewards = 0
         log_probs = []
+        entropy = 0
         terminal = False
         truncated = False
 
@@ -141,10 +165,13 @@ def a2c(
             values.append(value)
             rewards.append(reward)
             log_probs.append(action_dist.log_prob(action))
+            entropy += action_dist.entropy().mean()
 
             state = next_state
 
-        print('Episode: {:8}  |  Total Reward: {:16.8f}  |  Total Explore Reward: {:16.8f}'.format(episode_i + 1, sum(rewards), total_explore_rewards))
+        print('Episode: {:8}  |  Total Reward: {:16.8f}  |  Total Explore Reward: {:16.8f}'.format(episode_i, sum(rewards), total_explore_rewards))
+        episode_rewards.append(sum(rewards) - total_explore_rewards)
+        episode_explore_rewards.append(total_explore_rewards)
 
         # Calculate returns for episode (working backwards)
         next_value = 0
@@ -165,7 +192,7 @@ def a2c(
         # Calculate losses based on log action probabilities and advantages
         actor_loss = -(log_probs * advantages).mean()
         critic_loss = 0.5 * advantages.pow(2).mean()
-        loss = actor_loss + critic_loss
+        loss = actor_loss + critic_loss - entropy_scalar * entropy
 
         # Train networks
         actor.optimiser.zero_grad()
@@ -179,30 +206,33 @@ if __name__ == '__main__':
     custom_settings = {
         'word_length': 3,
         'truncation_limit': 1000,
-        'correct_guess_reward': 2,
+        'correct_guess_reward': 10,
         'early_guess_reward': 0.2,
         'colour_rewards': (0, 0.05, 0.1),
         'valid_word_reward': 0,
         'invalid_word_reward': 0,
         'step_reward': -0.0001,
         'repeated_guess_reward': 0,
-        'alphabet': 'abcd',
-        'vocab_file': 'word_lists/three_letter_abcd_all.txt',
-        'hidden_words_file': 'word_lists/three_letter_abcd_all.txt',
+        'alphabet': 'abcdefgh',
+        'vocab_file': 'word_lists/three_letter_abcdefgh.txt',
+        'hidden_words_file': 'word_lists/three_letter_abcdefgh.txt',
+        'max_hidden_word_options': 8,
+        'hidden_word_subset_seed': 1,
+        'state_representation': 'one_hot_grid'
     }
     custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0}
     environment = wordle_environment.make(custom_settings, custom_render_settings)
-    weight_filepaths = ('actor_w_a4.pt', 'critic_w_a4.pt',
-                        'f_target_w_a4.pt', 'f_prediction_w_a4.pt')
 
     a2c(
         environment,
         1000000,
-        save_weight_filepaths=weight_filepaths,
-        load_weight_filepaths=None,
+        save_weight_dir='8_word_weights',
+        load_weight_dir=None,
         explore_reward_scalar=1,
         feature_size=128,
         discount_factor=0.9,
         learning_rate=5e-4,
-        hidden_layers=(512, 256, 128)
+        hidden_layers=(256, 128),
+        conv_layers=64,
+        entropy_scalar=0.001
     )

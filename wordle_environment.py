@@ -80,9 +80,13 @@ class Wordle_Environment(gymnasium.Env):
     def __encode_state(self):
         if self.state_representation == 2:
             return self.state
-        
-        letter_k = self.blank_letter_number + 1 - self.state_representation
-        colour_k = 4 - self.state_representation
+
+        if self.state_representation == 0 or self.state_representation == 3:
+            letter_k = self.blank_letter_number + 1
+            colour_k = 4
+        elif self.state_representation == 1:
+            letter_k = self.blank_letter_number
+            colour_k = 3
         total_k = letter_k + colour_k
         
         encoded_state = np.full(
@@ -94,11 +98,14 @@ class Wordle_Environment(gymnasium.Env):
         for g in range(self.max_guesses):
             for p in range(self.word_length):
                 letter = self.state[0, g, p]
-                if self.state_representation == 0 or letter != self.blank_letter_number:
+                if self.state_representation == 0 or self.state_representation == 3 or letter != self.blank_letter_number:
                     encoded_state[g, p, letter] = 1
                 colour = self.state[1, g, p]
-                if self.state_representation == 0 or colour != 3:
+                if self.state_representation == 0 or self.state_representation == 3 or colour != 3:
                     encoded_state[g, p, letter_k + colour] = 1
+
+        if self.state_representation == 3:
+            return encoded_state
 
         return encoded_state.flatten()
 
@@ -278,9 +285,9 @@ class Wordle_Environment(gymnasium.Env):
             case 5:
                 self.action_space = gymnasium.spaces.Discrete(len(self.vocab_tuples))
 
-        state_representation_options = ('one_hot','one_hot_small','int')
+        state_representation_options = ('one_hot','one_hot_small','int','one_hot_grid')
         if settings['state_representation'] not in state_representation_options:
-            raise ValueError('state_representation must be int, one_hot or one_hot_small')
+            raise ValueError('state_representation must be int, one_hot, one_hot_small or one_hot_grid')
         self.state_representation = state_representation_options.index(settings['state_representation'])
 
         subarray_shape = (self.max_guesses, word_length)
@@ -292,6 +299,9 @@ class Wordle_Environment(gymnasium.Env):
 
         if self.state_representation == 2:
             self.observation_space = gymnasium.spaces.Box(0, self.starting_state, dtype='uint8')
+        elif self.state_representation == 3:
+            one_hot_grid_shape = [self.max_guesses, word_length, len(alphabet) + 5]
+            self.observation_space = gymnasium.spaces.MultiBinary(one_hot_grid_shape)
         else:
             if self.state_representation == 0:
                 extra_options = 5
@@ -1107,6 +1117,8 @@ entered this episode. -1 by default.
 using one-hot encoding, then the array is flattened
     - 'one_hot_small' - Similar to one_hot, but instead of treating empty letters/colours as separate
 categories, all the bools for that letter/colour slot are set to False
+    - 'one_hot_grid' - Similar to one_hot, but the 2-dimensional grid is kept intact, with one-hot encodings
+concatenated depth-wise for each grid position
     - 'int' - The board is represented as a 3D array where the first dimension is (0: letters, 1: colours),
 letters are represented as their alphabet index (or one higher than the max index for an empty letter), and
 colours are (0 = grey, 1 = yellow, 2 = green, 3 = empty)

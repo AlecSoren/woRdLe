@@ -50,7 +50,7 @@ Make sure to use the same seed each time, or it will choose a new random subset 
     - 'int' - The board is represented as a 3D array where the first dimension is (0: letters, 1: colours),
     letters are represented as their alphabet index (or one higher than the max index for an empty letter), and
     colours are (0 = grey, 1 = yellow, 2 = green, 3 = empty)
-
+    - 'one_hot_grid' - Similar to one_hot, but the 2-dimensional grid is kept intact, with one-hot encodings concatenated depth-wise for each grid position
 Also optionally accepts a custom_render_settings dictionary with any of the following fields:
 - 'render_mode' - Either 'command_line' or 'gui'.
 - 'scale' - Factor by which to scale the window. Default is 2/3
