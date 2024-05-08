@@ -469,7 +469,10 @@ class Wordle_Environment(gymnasium.Env):
         print(display_string)
 
 
-    def play(self, hidden_word = None):
+    def play(self, hidden_word = None, save_dict = None):
+        action_history = []
+        step_rewards = []
+
         self.reset(hidden_word)
         while True:
             self.render()
@@ -493,12 +496,21 @@ class Wordle_Environment(gymnasium.Env):
             rewards = []
             for a in actions:
                 state, reward, terminal, truncated, info = self.step(a)
+                action_history.append(a)
+                step_rewards.append(reward)
                 rewards.append(str(reward))
                 if terminal or truncated:
                     break
             print(' '.join(rewards))
             if terminal or truncated:
                 self.render()
+                if save_dict:
+                    save_dict['episodes'].append({
+                        'info':info,
+                        'actions':action_history,
+                        'rewards':step_rewards,
+                        'total_reward':sum(step_rewards)
+                    })
                 break
 
 
