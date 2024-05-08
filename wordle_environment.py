@@ -345,7 +345,6 @@ class Wordle_Environment(gymnasium.Env):
             self.hidden_word_tuple = hidden_word_tuple
             self.hidden_word_bits = hidden_word_bits
             self.hidden_word_set, self.hidden_word_counts = get_letter_counts(hidden_word_tuple)
-            print(self.hidden_word_counts)
 
         self.state = np.copy(self.starting_state)
 
