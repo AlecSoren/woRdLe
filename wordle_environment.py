@@ -999,13 +999,14 @@ class Wordle_GUI_Wrapper(gymnasium.Wrapper):
         pygame.quit()
 
 
-    def play(self, hidden_word = None, keybindings = None):
+    def play(self, hidden_word = None, keybindings = None, save_dict = None):
 
         if keybindings == None:
             if self.env.action_mode <= 4:
-                keybindings = {
-                    i+97:'qwertyuiopasdfghjklzxcvbnm'.index(l) for i, l in enumerate('abcdefghijklmnopqrstuvwxyz')
-                }
+                keybindings = {}
+                for i, l in enumerate('abcdefghijklmnopqrstuvwxyz'):
+                    if l in self.env.alphabet:
+                        keybindings[i + 97] = self.env.alphabet.index(l)
                 if self.env.action_mode <= 2:
                     keybindings[8] = -1
                     if self.env.action_mode == 1:
@@ -1021,6 +1022,9 @@ class Wordle_GUI_Wrapper(gymnasium.Wrapper):
         action_buffer = []
         action_counter = 0
 
+        action_history = []
+        step_rewards = []
+
         while True:
             events = [e for e in pygame.event.get()] + self.keypress_buffer
             self.keypress_buffer = []
@@ -1034,16 +1038,22 @@ class Wordle_GUI_Wrapper(gymnasium.Wrapper):
 
                         if self.env.action_mode <= 3:
                             state, reward, terminal, truncated, info = self.step(action)
+                            action_history.append(action)
+                            step_rewards.append(reward)
 
                         elif self.env.action_mode == 4:
                             action_buffer.append(action)
                             if len(action_buffer) == self.env.word_length:
                                 state, reward, terminal, truncated, info = self.step(action_buffer)
+                                action_history.append(action_buffer)
+                                step_rewards.append(reward)
                                 action_buffer = []
 
                         elif self.env.action_mode == 5:
                             if action == -2:
                                 state, reward, terminal, truncated, info = self.step(action_counter)
+                                action_history.append(action_counter)
+                                step_rewards.append(reward)
                                 action_counter = 0
                             else:
                                 action_counter = action_counter * 10 + action
@@ -1053,6 +1063,13 @@ class Wordle_GUI_Wrapper(gymnasium.Wrapper):
                     return
                 
             if terminal or truncated or not self.currently_rendered:
+                if save_dict:
+                    save_dict['episodes'].append({
+                        'info':info,
+                        'actions':action_history,
+                        'rewards':step_rewards,
+                        'total_reward':sum(step_rewards)
+                    })
                 break
 
 
