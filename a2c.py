@@ -98,6 +98,7 @@ def a2c(
         hidden_layers=(512, 256, 128),
         conv_layers=64,
         entropy_scalar=0.01,
+        learn=True
 ):
     input_shape = env.observation_space.shape
     output_size = env.action_space.n
@@ -119,7 +120,7 @@ def a2c(
 
     while len(episode_rewards) < num_episodes:
         episode_i = len(episode_rewards) + 1
-        if save_weight_dir:
+        if save_weight_dir and learn:
             if episode_i % 25 == 0:
                 actor.save_weights(f'{save_weight_dir}/actor_weights.pt')
                 critic.save_weights(f'{save_weight_dir}/critic_weights.pt')
@@ -128,7 +129,7 @@ def a2c(
                 np.save(f'{save_weight_dir}/episode_rewards.npy', np.array(episode_rewards))
                 np.save(f'{save_weight_dir}/episode_explore_rewards.npy', np.array(episode_explore_rewards))
 
-            if episode_i in [25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000]:
+            if episode_i in [2500, 5000, 7500, 10000, 12500, 15000, 17500, 20000, 25000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000]:
                 episode_dir = f'{save_weight_dir}/{episode_i}'
                 if not os.path.exists(episode_dir):
                     os.mkdir(episode_dir)
@@ -173,6 +174,9 @@ def a2c(
         episode_rewards.append(sum(rewards) - total_explore_rewards)
         episode_explore_rewards.append(total_explore_rewards)
 
+        if not learn:
+            continue
+
         # Calculate returns for episode (working backwards)
         next_value = 0
         if not terminal:
@@ -216,23 +220,22 @@ if __name__ == '__main__':
         'alphabet': 'abcdefgh',
         'vocab_file': 'word_lists/three_letter_abcdefgh.txt',
         'hidden_words_file': 'word_lists/three_letter_abcdefgh.txt',
-        'max_hidden_word_options': 8,
-        'hidden_word_subset_seed': 1,
         'state_representation': 'one_hot_grid'
     }
-    custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0}
+    custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0.5}
     environment = wordle_environment.make(custom_settings, custom_render_settings)
 
     a2c(
         environment,
         1000000,
-        save_weight_dir='8_word_weights',
-        load_weight_dir=None,
+        save_weight_dir=None,
+        load_weight_dir='final_model',
         explore_reward_scalar=1,
         feature_size=128,
         discount_factor=0.9,
         learning_rate=5e-4,
         hidden_layers=(256, 128),
         conv_layers=64,
-        entropy_scalar=0.001
+        entropy_scalar=0.001,
+        learn=False
     )
