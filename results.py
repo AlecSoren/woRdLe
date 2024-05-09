@@ -60,7 +60,7 @@ explore_y_label = 'Average total episode exploration reward'
 
 training_label = 'Agent'
 human_label = 'Human'
-optimal_label = 'Optimal'
+optimal_label = 'Optimal policy'
 
 training_colour = 'black'
 human_colour = 'blue'
@@ -76,7 +76,7 @@ avg_training_rewards = average_per_n(training_rewards, n)
 training_winrate = [int(reward > 0.3) for reward in training_rewards]
 avg_training_winrate = average_per_n(training_winrate, n)
 
-avg_optimal_reward = 10.4
+avg_optimal_reward = 10.699249999999997
 avg_optimal_winrate = 1
 
 human_data = []
@@ -103,4 +103,3 @@ plot_rewards(avg_training_winrate, avg_human_winrate, avg_optimal_winrate, 'winr
 x_label = 'Episode'
 y_label = 'Total episode reward'
 plot_rewards(training_rewards, avg_human_reward, avg_optimal_reward, 'final_rewards', 79800)
-
