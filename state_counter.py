@@ -1,4 +1,5 @@
 from wordle_environment import make
+from wordle_solver import get_colours
 import numpy as np
 
 
@@ -12,10 +13,13 @@ def count_states(custom_settings = {}, include_incomplete_words = True):
     for vocab_word in env.vocab_tuples:
         states = []
         vocab_set = set(vocab_word)
-        for word, _, __, word_set, ____ in env.hidden_words:
+        enum_guess = tuple(enumerate(vocab_word))
+        starting_guess_counts = {l:0 for l in vocab_word}
+        for word, word_tuple, __, word_set, word_counts in env.hidden_words:
             if states == [] or not vocab_set.isdisjoint(word_set):
                 env.reset(word)
                 new_state = env.step(vocab_word)[0][:,0]
+                #new_state = get_colours(word_tuple, word_counts, enum_guess, starting_guess_counts)
                 state_is_new = True
                 for state in states:
                     if np.array_equal(state, new_state):
@@ -31,7 +35,7 @@ def count_states(custom_settings = {}, include_incomplete_words = True):
     print(f'{unique_rows} unique input & hidden word combinations found')
 
     incomplete_word_options = 1
-    for i in range(1, env.word_length + 1):
+    for i in range(1, env.word_length):
         incomplete_word_options += len(env.alphabet) ** i
 
     unique_states = 1
