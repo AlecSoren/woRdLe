@@ -36,7 +36,7 @@ class CNN(nn.Module):
         T.save(self.state_dict(), file_path)
 
     def load_weights(self, file_path):
-        self.load_state_dict(T.load(file_path))
+        self.load_state_dict(T.load(file_path, map_location = DEVICE))
 
 
 # Actor network to generate probability distribution of actions given a state
@@ -82,8 +82,8 @@ class FeatureTargetPredictor:
         T.save(self.feature_predictor.state_dict(), file_path_predictor)
 
     def load_weights(self, file_path_target, file_path_predictor):
-        self.feature_target.load_state_dict(T.load(file_path_target))
-        self.feature_predictor.load_state_dict(T.load(file_path_predictor))
+        self.feature_target.load_state_dict(T.load(file_path_target, map_location = DEVICE))
+        self.feature_predictor.load_state_dict(T.load(file_path_predictor, map_location = DEVICE))
 
 
 def a2c(
@@ -98,7 +98,8 @@ def a2c(
         hidden_layers=(512, 256, 128),
         conv_layers=64,
         entropy_scalar=0.01,
-        learn=True
+        learn=True,
+        show_boards = False
 ):
     input_shape = env.observation_space.shape
     output_size = env.action_space.n
@@ -107,6 +108,8 @@ def a2c(
     critic = Critic(input_shape, hidden_layers, learning_rate)
 
     feature_target_predictor = FeatureTargetPredictor(input_shape, feature_size, conv_layers, (128, 128, 128), learning_rate)
+
+    hidden_word_i = 0
 
     episode_rewards = []
     episode_explore_rewards = []
@@ -138,7 +141,13 @@ def a2c(
                 feature_target_predictor.save_weights(f'{episode_dir}/feature_target_weights.pt',
                                                       f'{episode_dir}/feature_predictor_weights.pt')
 
-        state, _ = env.reset()
+        if show_boards:
+            #hidden_words = [e[0] for e in env.unwrapped.hidden_words]
+            hidden_words = ('ace', 'dad', 'gah')
+            state, _ = env.reset(hidden_words[hidden_word_i % len(hidden_words)])
+            hidden_word_i += 1
+        else:
+            state, _ = env.reset()
         values = []
         rewards = []
         total_explore_rewards = 0
@@ -169,6 +178,10 @@ def a2c(
             entropy += action_dist.entropy().mean()
 
             state = next_state
+
+        if show_boards:
+            env.unwrapped.render()
+            input()
 
         print('Episode: {:8}  |  Total Reward: {:16.8f}  |  Total Explore Reward: {:16.8f}'.format(episode_i, sum(rewards), total_explore_rewards))
         episode_rewards.append(sum(rewards) - total_explore_rewards)
@@ -222,12 +235,13 @@ if __name__ == '__main__':
         'hidden_words_file': 'word_lists/three_letter_abcdefgh.txt',
         'state_representation': 'one_hot_grid'
     }
-    custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0.5}
+    #custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0.5}
+    custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0}
     environment = wordle_environment.make(custom_settings, custom_render_settings)
 
     a2c(
         environment,
-        1000000,
+        80030,
         save_weight_dir=None,
         load_weight_dir='final_model',
         explore_reward_scalar=1,
@@ -237,5 +251,6 @@ if __name__ == '__main__':
         hidden_layers=(256, 128),
         conv_layers=64,
         entropy_scalar=0.001,
-        learn=False
+        learn=False,
+        show_boards=True
     )

@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import json
+from math import floor
 
 
 
@@ -75,9 +76,12 @@ training_rewards = np.load('final_model/episode_rewards.npy')
 avg_training_rewards = average_per_n(training_rewards, n)
 training_winrate = [int(reward > 0.3) for reward in training_rewards]
 avg_training_winrate = average_per_n(training_winrate, n)
+training_guesses = [6 - max(floor((reward - 9.9) / 0.2), 0) for reward in training_rewards]
+avg_training_guesses = average_per_n(training_guesses, n)
 
 avg_optimal_reward = 10.699249999999997
 avg_optimal_winrate = 1
+avg_optimal_guesses = 2.5
 
 human_data = []
 for filename in ('ben.json', 'james.json', 'leena.json', 'veronika.json', 'raps.json'):
@@ -86,6 +90,7 @@ for filename in ('ben.json', 'james.json', 'leena.json', 'veronika.json', 'raps.
 human_rewards = [episode['total_reward'] for episode in human_data]
 avg_human_reward = np.mean(human_rewards)
 avg_human_winrate = np.mean([int(episode['info']['correct_guess']) for episode in human_data])
+avg_human_guesses = np.mean([6 - max(floor((reward - 9.9) / 0.2), 0) for reward in human_rewards])
 
 avg_explore_rewards = average_per_n(np.load('final_model/episode_explore_rewards.npy'), n)
 plt.clf()
@@ -98,6 +103,8 @@ plt.grid(True, which='major')
 plt.savefig('graphs/explore.svg', format="svg")
 
 plot_rewards(avg_training_rewards, avg_human_reward, avg_optimal_reward, 'rewards')
+y_label = 'Average guesses per episode'
+plot_rewards(avg_training_guesses, avg_human_guesses, avg_optimal_guesses, 'guesses')
 y_label = 'Winrate'
 plot_rewards(avg_training_winrate, avg_human_winrate, avg_optimal_winrate, 'winrate')
 x_label = 'Episode'

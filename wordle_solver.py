@@ -134,6 +134,7 @@ except FileNotFoundError:
 
 total_reward = 0
 wins = 0
+guesses = 0
 for word, *_ in env.hidden_words:
     state, _ = env.reset(word)
     solutions_branch = solutions
@@ -141,10 +142,15 @@ for word, *_ in env.hidden_words:
         guess = solutions_branch[0]
         for action in guess:
             state, reward, terminal, truncated, info = env.step(action)
+        guesses += 1
         if terminal:
             total_reward += info['total_reward']
             if info['correct_guess']:
                 wins += 1
             break
         solutions_branch = solutions_branch[1][tuple(state[1, i])]
-print(f'Avg reward: {total_reward / len(env.hidden_words)} \t Winrate: {wins / len(env.hidden_words)}')
+
+reward = total_reward / len(env.hidden_words)
+winrate = wins / len(env.hidden_words)
+guesses /= len(env.hidden_words)
+print(f'Avg reward: {reward} \t Winrate: {winrate} \t Avg guesses: {guesses}')
