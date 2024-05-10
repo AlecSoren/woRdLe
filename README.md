@@ -3,7 +3,25 @@ Solving Wordle with reinforcement learning. For University of Bath unit CM50270
 
 Requires NumPy, pygame and Gymnasium
 
-## Getting started:
+## Agent
+
+Our agent uses the advantage actor critic (A2C) algorithm to solve Wordle puzzles. It utilises convolutional neural networks (CNNs) to extract colour and letter information at each grid cell, along with random network distillation (RND) to encourage exploration of unfamiliar states.
+
+This section outlines how our agent can be run and how key parameters can be altered to change its behaviour. Note that this is not a comprehensive description of the agent, but rather an overview of how it can be trained and demonstrated.
+
+The *a2c.py* file can be executed to run our agent. By default, this program loads the fully trained weights of our agent and uses them to play Wordle. Additionally, by default the agent does not learn from these episodes, but rather displays them graphically for demonstration purposes.
+
+The program can be altered to begin training from scratch, rather than demonstrate our trained agent, through the following parameters:
+- *custom_render_settings*:
+  - *render_mode* - "command_line" to run the code in terminal, and "gui" to run it graphically.
+  - *animation_duration* - The scale of the graphical animation speed, where 1 is the standard speed.
+- *a2c* function parameters:
+  - *load_weight_dir* - None to train the agent from scratch, or a directory path to load saved weights.
+  - *learn* - True to have the agent learn from episodes it runs, or False to freeze current weights.
+
+## Environment
+
+### Getting started
 
 import wordle_environment
 
@@ -11,7 +29,7 @@ env = wordle_environment.make()
 
 env.play()
 
-## make()
+### make()
 
 Returns a Wordle environment instance.
 
@@ -56,9 +74,9 @@ Also optionally accepts a custom_render_settings dictionary with any of the foll
 - 'scale' - Factor by which to scale the window. Default is 2/3
 - 'animation_duration' - Factor by which animation times are multiplied. 1 is normal speed, 0 is instant.
 
-## Environment methods
+### Environment methods
 
-### reset()
+#### reset()
 
 Begin a new episode.
 
@@ -70,7 +88,7 @@ Returns:
 - observation (NDArray[uint8]) - Observation of the current state. See the step() method for details.
 - info (dict) - Contains other information unknown to the agent. See the step() method for details.
 
-### step(action)
+#### step(action)
 
 Take an action.
 
@@ -98,7 +116,7 @@ Returns:
     - 'invalid_words_entered' (int) - Total number of invalid words entered so far in this episode.
     - 'incomplete_words_entered' (int) - Total number of incomplete words entered so far in this episode.
 
-### render()
+#### render()
 
 Displays the current state in a human-comprehensible format.
 
@@ -106,7 +124,7 @@ Parameters: None
 
 Returns: None
 
-### play()
+#### play()
 
 Plays one episode, controlled by the user.
 
@@ -114,24 +132,24 @@ Parameters
 - hidden_word (str) - If specified, it will be set as the hidden/answer word for this episode. Note that since play() automatically resets the environment, this is the only way to set the hidden word.
 - keybindings (dict) - If GUI is enabled, this allows for keybindings to be customised.
 
-### close()
+#### close()
 
 See https://gymnasium.farama.org/api/env/#gymnasium.Env.close
 
-## Environment attributes
+### Environment attributes
 
-### action_space
+#### action_space
 
 See https://gymnasium.farama.org/api/env/#gymnasium.Env.action_space
 
-### observation_space
+#### observation_space
 
 See https://gymnasium.farama.org/api/env/#gymnasium.Env.observation_space
 
-### metadata
+#### metadata
 
 metadata['render_modes'] contains a list of all possible render modes
 
-### unwrapped
+#### unwrapped
 
 If GUI rendering is used, make() will return a GUI wrapper. This property returns the unwrapped environment.

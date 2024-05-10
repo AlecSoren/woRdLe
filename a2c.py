@@ -36,7 +36,7 @@ class CNN(nn.Module):
         T.save(self.state_dict(), file_path)
 
     def load_weights(self, file_path):
-        self.load_state_dict(T.load(file_path, map_location = DEVICE))
+        self.load_state_dict(T.load(file_path, map_location=DEVICE))
 
 
 # Actor network to generate probability distribution of actions given a state
@@ -78,12 +78,12 @@ class FeatureTargetPredictor:
         return prediction_error
 
     def save_weights(self, file_path_target, file_path_predictor):
-        T.save(self.feature_target.state_dict(), file_path_target)
-        T.save(self.feature_predictor.state_dict(), file_path_predictor)
+        self.feature_target.save_weights(file_path_target)
+        self.feature_predictor.save_weights(file_path_predictor)
 
     def load_weights(self, file_path_target, file_path_predictor):
-        self.feature_target.load_state_dict(T.load(file_path_target, map_location = DEVICE))
-        self.feature_predictor.load_state_dict(T.load(file_path_predictor, map_location = DEVICE))
+        self.feature_target.load_weights(file_path_target)
+        self.feature_predictor.load_weights(file_path_predictor)
 
 
 def a2c(
@@ -235,13 +235,12 @@ if __name__ == '__main__':
         'hidden_words_file': 'word_lists/three_letter_abcdefgh.txt',
         'state_representation': 'one_hot_grid'
     }
-    #custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0.5}
-    custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0}
+    custom_render_settings = {'render_mode': 'gui', 'animation_duration': 0.5}
     environment = wordle_environment.make(custom_settings, custom_render_settings)
 
     a2c(
         environment,
-        80030,
+        100000,
         save_weight_dir=None,
         load_weight_dir='final_model',
         explore_reward_scalar=1,
@@ -252,5 +251,5 @@ if __name__ == '__main__':
         conv_layers=64,
         entropy_scalar=0.001,
         learn=False,
-        show_boards=True
+        show_boards=False
     )
